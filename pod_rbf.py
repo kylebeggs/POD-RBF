@@ -1,36 +1,21 @@
 import numpy as np
-import sys, os
-import matplotlib.pyplot as plt
 import time
 
 
 
-def mkSnapshotMatrix(numNodes, L, T0):
-    """
-    Assemble the snapshot matrix
-    """
-    print('making the snapshot matrix... ', end='')
-    start = time.time()
+def calcTruncatedPODBasis(snapShot, energyThreshold):
+    """Calculate the truncated POD basis.
 
-    snapShot = np.zeros( (numNodes, len(T0)) )
-    for i in range(len(T0)):
-        prob = heat.problem(numNodes, L/(numNodes-1), T0[i])
-        A, d = heat.mkFiniteVolumeMatrices(prob)
-        snapShot[:,i] = np.linalg.solve(A, d)
-
-    print('took {:3.3f} sec'.format(time.time()-start))
-    
-    return snapShot
-
-
-def calcTruncatedPODBasis(snapShot):
-    """
-    Calculate the truncated POD basis
+    :param ndarray snapShot: the matrix containing data points for each parameter as columns
+    :param float energyThreshold: the percent of energy to keep in the system
+    :returns: the truncated POD basis
+    :rtype: ndarray
     """
     print('calculating the truncated POD basis... ', end='')
     start = time.time()
 
-    cov = np.dot(np.transpose(snapShot), snapShot)
+    # compute the covarience matrix and corresponding eigenvalues and eigenvectors
+    cov = np.matmul(np.transpose(snapShot), snapShot)
     eigVals, eigVecs = np.linalg.eigh(cov)
     eigVals = np.abs(eigVals.real)
     eigVecs = eigVecs.real
@@ -39,20 +24,18 @@ def calcTruncatedPODBasis(snapShot):
     energy = eigVals / np.sum(eigVals)
 
     # truncate the eigenvalues and eigenvectors
-    threshold = 0.999
     totalEnergy = 0
     for i in range(len(energy)):
         totalEnergy += energy[i]
-        if totalEnergy > threshold:
+        if totalEnergy > energyThreshold:
             truncId = i+1
             break
     if truncId is not None:
         eigVals = eigVals[:truncId]
         energy = energy[:truncId]
-
-    # compute eigenvecs
     eigVecs = eigVecs[:,:truncId]
 
+    # calculate the truncated POD basis
     basis = np.matmul(snapShot, eigVecs)
     for i in range(len(eigVals)):
         basis[:,i] = basis[:,i]/np.sqrt(eigVals[i])
@@ -65,6 +48,13 @@ def calcTruncatedPODBasis(snapShot):
 def trainRBF(snapShot, basis, shapeFactor, trainParams):
     """
     Train the Radial Basis Function (RBF) network
+
+    :param ndarray snapShot: the matrix containing data points for each parameter as columns
+    :param ndarray basis: the truncated POD basis
+    :param float shapeFactor: the shape factor to be used in the RBF network
+    :param ndarray trainParams: the parameters used to generate the snapshot matrix
+    :returns: the weights/coefficients of the RBF network
+    :rtype: ndarray
     """
     print('training the RBF network... ', end='')
     start = time.time()
@@ -88,8 +78,15 @@ def trainRBF(snapShot, basis, shapeFactor, trainParams):
 
 
 def infRBF(basis, weights, shapeFactor, trainParams, infParams):
-    """
-    Inference the RBF network with an unseen parameter.
+    """Inference the RBF network with an unseen parameter.
+
+    :param ndarray basis: the truncated POD basis
+    :param ndarray weights: the weights/coefficients of the RBF network
+    :param float shapeFactor: the shape factor to be used in the RBF network
+    :param ndarray trainParams: the parameters used to generate the snapshot matrix
+    :param ndarray infParams: the parameters to inference the RBF network on
+    :returns: the output of the RBF netowkr according to the infParams argument
+    :rtype: ndarray
     """
     print('inferencing the RBF network... ', end='')
     start = time.time()
@@ -116,46 +113,11 @@ def infRBF(basis, weights, shapeFactor, trainParams, infParams):
 
     # calculate the inferenced solution
     A = np.matmul(weights, np.transpose(F))
-    sol = np.matmul(basis, A)
+    inference = np.matmul(basis, A)
 
     print('took {:3.3f} sec'.format(time.time()-start))
 
-    return sol
-
-
-
-if __name__ == "__main__":
-
-    sys.path.insert(0, '/home/kylebeggs/CERT/kylebeggs/phd/mahi/meshless')
-    import heatConduction1D as heat
-
-    L = 1
-    numNodes = 10
-
-    T0 = np.linspace(20, 1000, num=500)
-
-    shapeFactor = 10
-
-    # make snapshot matrix
-    snapShot = mkSnapshotMatrix(numNodes, L, T0)
-
-    # calculate truncated POD basis
-    basis = calcTruncatedPODBasis(snapShot)
-    
-    # calculate 'test' solution
-    testT0 = 85
-    prob = heat.problem(numNodes, L/(numNodes-1), testT0)
-    A, d = heat.mkFiniteVolumeMatrices(prob)
-    test = np.linalg.solve(A, d)
-    
-    # inference the trained RBF network
-    weights = trainRBF(snapShot, basis, shapeFactor, T0)
-    sol = infRBF(basis, weights, shapeFactor, T0, testT0)
-
-    print('\n')
-    print(test)
-    print(sol)
-    print( np.divide(np.abs(test-sol), ((test+sol)/2) )*100)
+    return inference
 
 
 
