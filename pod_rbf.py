@@ -1,4 +1,7 @@
 import numpy as np
+import numba as nb
+import warnings
+warnings.filterwarnings('ignore')
 import time
 
 
@@ -45,6 +48,21 @@ def calcTruncatedPODBasis(snapShot, energyThreshold):
     return basis
 
 
+@nb.jit('f8(f8[:],f8)')
+def buildTrainF(trainParams, c):
+    n = len(trainParams)
+    F = np.zeros( (n,n) )
+    for i in range(n):
+        for j in range(n):
+            F[i,j] = 1/np.sqrt( np.abs(trainParams[i]-trainParams[j]) + c**2 )
+
+    return F
+
+
+def buildInfF(trainParams, infParams, c):
+    return 1/np.sqrt( np.abs(infParams-trainParams) + c**2 )
+
+
 def trainRBF(snapShot, basis, shapeFactor, trainParams):
     """
     Train the Radial Basis Function (RBF) network
@@ -58,15 +76,11 @@ def trainRBF(snapShot, basis, shapeFactor, trainParams):
     """
     print('training the RBF network... ', end='')
     start = time.time()
-
-    c = shapeFactor
-    numParams = len(trainParams)
+    
+    n = len(trainParams)
 
     # build the Radial Basis Function (RBF) matrix
-    F = np.zeros( (numParams,numParams) )
-    for i in range(numParams):
-        for j in range(numParams):
-            F[i,j] = 1/np.sqrt( np.linalg.norm(trainParams[i]-trainParams[j]) + c**2 )
+    F = buildTrainF(trainParams, shapeFactor)
 
     # calculate the amplitudes (A) and weights/coefficients (B)
     A = np.matmul(np.transpose(basis), snapShot)
@@ -100,16 +114,8 @@ def infRBF(basis, weights, shapeFactor, trainParams, infParams):
     numTrainParams = len(trainParams)
 
     # build the Radial Basis Function (RBF) matrix
-    if numInfParams > 1:
-        F = np.zeros( (numInfParams,numTrainParams) )
-        for i in range(numInfParams):
-            for j in range(numTrainParams):
-                F[i,j] = 1/np.sqrt( np.linalg.norm(infParams[i]-trainParams[j]) + c**2 )
-    else:
-        F = np.zeros(numTrainParams)
-        for j in range(numTrainParams):
-            F[j] = 1/np.sqrt( np.linalg.norm(infParams-trainParams[j]) + c**2 )
-
+    s=time.time()
+    F = np.array(buildInfF(trainParams, infParams, shapeFactor))
 
     # calculate the inferenced solution
     A = np.matmul(weights, np.transpose(F))
