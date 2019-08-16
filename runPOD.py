@@ -31,7 +31,7 @@ if __name__ == "__main__":
     L = 1
     numNodes = 100
     
-    T0 = np.linspace(20, 1000, num=500)
+    T0 = np.linspace(20, 1000, num=50)
     
     shapeFactor = 10
     energyThreshold = 0.999
@@ -52,12 +52,12 @@ if __name__ == "__main__":
     weights = p.trainRBF(snapShot, basis, shapeFactor, T0)
     sol = p.infRBF(basis, weights, shapeFactor, T0, testT0)
     
-    #error = np.divide(np.abs(test-sol), ((test+sol)/2), out=np.zeros_like(test), where=test!=0)*100
+    error = np.divide(np.abs(test-sol), ((test+sol)/2), out=np.zeros_like(test), where=test!=0)*100
+    print('Avg error = {:3.5f}'.format(np.mean(error)))
 
-    #plt.plot(error)
-    #plt.plot(test)
-    #plt.plot(sol)
-    #plt.show()
+    plt.plot(test)
+    plt.plot(sol)
+    plt.show()
     
 
 

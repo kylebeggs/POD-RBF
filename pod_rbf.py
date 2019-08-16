@@ -1,7 +1,4 @@
 import numpy as np
-import numba as nb
-import warnings
-warnings.filterwarnings('ignore')
 import time
 
 
@@ -9,10 +6,18 @@ import time
 def calcTruncatedPODBasis(snapShot, energyThreshold):
     """Calculate the truncated POD basis.
 
-    :param ndarray snapShot: the matrix containing data points for each parameter as columns
-    :param float energyThreshold: the percent of energy to keep in the system
-    :returns: the truncated POD basis
-    :rtype: ndarray
+    Parameters
+    ----------
+    snapShot : ndarray
+        The matrix containing data points for each parameter as columns.
+    energyThreshold : float
+        The percent of energy to keep in the system.
+
+    Returns
+    -------
+    ndarray
+        The truncated POD basis.
+
     """
     print('calculating the truncated POD basis... ', end='')
     start = time.time()
@@ -48,31 +53,52 @@ def calcTruncatedPODBasis(snapShot, energyThreshold):
     return basis
 
 
-@nb.jit('f8(f8[:],f8)')
-def buildTrainF(trainParams, c):
-    n = len(trainParams)
-    F = np.zeros( (n,n) )
-    for i in range(n):
-        for j in range(n):
-            F[i,j] = 1/np.sqrt( np.abs(trainParams[i]-trainParams[j]) + c**2 )
+def mkHardyIMQMatrix(trainParams, infParams, shapeFactor):
+    """Make the Radial Basis Function (RBF) matrix using the
+     Hardy Inverse Multi-Qualdrics (IMQ) function
 
-    return F
+    Parameters
+    ----------
+    trainParams : ndarray
+        The parameters used to generate the snapshot matrix.
+    infParams : ndarray
+        The parameters to inference the RBF network on.
+    shapeFactor : float
+        The shape factor to be used in the RBF network.
 
+    Returns
+    -------
+    ndarray
+        The RBF matrix.
 
-def buildInfF(trainParams, infParams, c):
-    return 1/np.sqrt( np.abs(infParams-trainParams) + c**2 )
+    """
+    if hasattr(infParams, '__len__'):
+        I, J = np.meshgrid(infParams, trainParams, indexing='ij')
+        return 1/np.sqrt( np.abs(I-J) + shapeFactor**2 )
+    else:
+        return 1/np.sqrt( np.abs(infParams-trainParams) + shapeFactor**2 )
 
 
 def trainRBF(snapShot, basis, shapeFactor, trainParams):
     """
     Train the Radial Basis Function (RBF) network
 
-    :param ndarray snapShot: the matrix containing data points for each parameter as columns
-    :param ndarray basis: the truncated POD basis
-    :param float shapeFactor: the shape factor to be used in the RBF network
-    :param ndarray trainParams: the parameters used to generate the snapshot matrix
-    :returns: the weights/coefficients of the RBF network
-    :rtype: ndarray
+    Parameters
+    ----------
+    snapShot : ndarray
+        The matrix containing data points for each parameter as columns.
+    basis : ndarray
+        The truncated POD basis.
+    shapeFactor : float
+        The shape factor to be used in the RBF network.
+    trainParams : ndarray
+        The parameters used to generate the snapshot matrix.
+
+    Returns
+    -------
+    ndarray
+        The weights/coefficients of the RBF network.
+
     """
     print('training the RBF network... ', end='')
     start = time.time()
@@ -80,7 +106,7 @@ def trainRBF(snapShot, basis, shapeFactor, trainParams):
     n = len(trainParams)
 
     # build the Radial Basis Function (RBF) matrix
-    F = buildTrainF(trainParams, shapeFactor)
+    F = mkHardyIMQMatrix(trainParams, trainParams, shapeFactor)
 
     # calculate the amplitudes (A) and weights/coefficients (B)
     A = np.matmul(np.transpose(basis), snapShot)
@@ -94,28 +120,30 @@ def trainRBF(snapShot, basis, shapeFactor, trainParams):
 def infRBF(basis, weights, shapeFactor, trainParams, infParams):
     """Inference the RBF network with an unseen parameter.
 
-    :param ndarray basis: the truncated POD basis
-    :param ndarray weights: the weights/coefficients of the RBF network
-    :param float shapeFactor: the shape factor to be used in the RBF network
-    :param ndarray trainParams: the parameters used to generate the snapshot matrix
-    :param ndarray infParams: the parameters to inference the RBF network on
-    :returns: the output of the RBF netowkr according to the infParams argument
-    :rtype: ndarray
+    Parameters
+    ----------
+    basis : ndarray
+        The truncated POD basis.
+    weights : ndarray
+        The weights/coefficients of the RBF network.
+    shapeFactor : float
+        The shape factor to be used in the RBF network.
+    trainParams : ndarray
+        The parameters used to generate the snapshot matrix.
+    infParams : ndarray
+        The parameters to inference the RBF network on.
+
+    Returns
+    -------
+    ndarray
+        The output of the RBF netowkr according to the infParams argument.
+
     """
     print('inferencing the RBF network... ', end='')
     start = time.time()
 
-    c = shapeFactor
-
-    if hasattr(infParams, '__len__'):
-        numInfParams = len(infParams)
-    else:
-        numInfParams = 1
-    numTrainParams = len(trainParams)
-
     # build the Radial Basis Function (RBF) matrix
-    s=time.time()
-    F = np.array(buildInfF(trainParams, infParams, shapeFactor))
+    F = mkHardyIMQMatrix(trainParams, infParams, shapeFactor)
 
     # calculate the inferenced solution
     A = np.matmul(weights, np.transpose(F))
