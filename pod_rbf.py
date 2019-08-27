@@ -102,7 +102,7 @@ def trainRBF(snapShot, basis, shapeFactor, trainParams):
     """
     print('training the RBF network... ', end='')
     start = time.time()
-    
+
     n = len(trainParams)
 
     # build the Radial Basis Function (RBF) matrix
