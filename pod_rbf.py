@@ -1,6 +1,7 @@
 import numpy as np
 import time
-
+from tqdm import tqdm
+import gc
 
 
 def calcTruncatedPODBasis(snapShot, energyThreshold):
@@ -36,24 +37,59 @@ def calcTruncatedPODBasis(snapShot, energyThreshold):
     for i in range(len(energy)):
         totalEnergy += energy[i]
         if totalEnergy > energyThreshold:
-            truncId = i+1
+            truncId = i + 1
             break
     if truncId is not None:
         eigVals = eigVals[:truncId]
         energy = energy[:truncId]
-    eigVecs = eigVecs[:,:truncId]
+    eigVecs = eigVecs[:, :truncId]
 
     # calculate the truncated POD basis
     basis = np.matmul(snapShot, eigVecs)
     for i in range(len(eigVals)):
-        basis[:,i] = basis[:,i]/np.sqrt(eigVals[i])
+        basis[:, i] = basis[:, i] / np.sqrt(eigVals[i])
 
-    print('took {:3.3f} sec'.format(time.time()-start))
+    print('took {:3.3f} sec'.format(time.time() - start))
+
+    gc.collect()
 
     return basis
 
 
-def mkHardyIMQMatrix(trainParams, infParams, shapeFactor):
+def mkHardyIMQTrainMatrix(trainParams, shapeFactor):
+    """Make the Radial Basis Function (RBF) matrix using the
+     Hardy Inverse Multi-Qualdrics (IMQ) function
+
+    Parameters
+    ----------
+    trainParams : ndarray
+        The parameters used to generate the snapshot matrix.
+    shapeFactor : float
+        The shape factor to be used in the RBF network.
+
+    Returns
+    -------
+    ndarray
+        The RBF matrix.
+
+    """
+    print('constructing the RBF matrix... ', end='')
+    start = time.time()
+
+    sum = np.zeros((len(trainParams[0, :]), len(trainParams[0, :])))
+    for i in tqdm(range(trainParams.shape[0])):
+        I, J = np.meshgrid(trainParams[i, :],
+                           trainParams[i, :],
+                           indexing='ij',
+                           copy=False)
+        sum += np.abs(I - J)
+    gc.collect()
+    print('took {} sec'.format(time.time() - start))
+
+    return 1 / np.sqrt(sum + shapeFactor**2)
+
+
+def mkHardyIMQInfMatrix(trainParams, infParams, shapeFactor):
     """Make the Radial Basis Function (RBF) matrix using the
      Hardy Inverse Multi-Qualdrics (IMQ) function
 
@@ -72,11 +108,27 @@ def mkHardyIMQMatrix(trainParams, infParams, shapeFactor):
         The RBF matrix.
 
     """
-    if hasattr(infParams, '__len__'):
-        I, J = np.meshgrid(infParams, trainParams, indexing='ij')
-        return 1/np.sqrt( np.abs(I-J) + shapeFactor**2 )
-    else:
-        return 1/np.sqrt( np.abs(infParams-trainParams) + shapeFactor**2 )
+    print('constructing the RBF matrix... ', end='')
+    start = time.time()
+
+    sum = np.zeros((1, len(trainParams[0, :])))
+    for i in tqdm(range(trainParams.shape[0])):
+        I, J = np.meshgrid(infParams[i],
+                           trainParams[i, :],
+                           indexing='ij',
+                           copy=False)
+        sum += np.abs(I - J)
+    gc.collect()
+    return 1 / np.sqrt(sum + shapeFactor**2)
+
+    #I1, J1 = np.meshgrid(infParams[0], trainParams[0, :], indexing='ij')
+    #I2, J2 = np.meshgrid(infParams[1], trainParams[1, :], indexing='ij')
+    #I3, J3 = np.meshgrid(infParams[2], trainParams[2, :], indexing='ij')
+    #sum = np.abs(I1 - J1) + np.abs(I2 - J2) + np.abs(I3 - J3)
+    #del I1, J1, I2, J2, I3, J3
+    #sum = sum.reshape(len(trainParams[0, :]), )
+    #gc.collect()
+    #return 1 / np.sqrt(sum + shapeFactor**2)
 
 
 def trainRBF(snapShot, basis, shapeFactor, trainParams):
@@ -103,16 +155,20 @@ def trainRBF(snapShot, basis, shapeFactor, trainParams):
     print('training the RBF network... ', end='')
     start = time.time()
 
-    n = len(trainParams)
-
     # build the Radial Basis Function (RBF) matrix
-    F = mkHardyIMQMatrix(trainParams, trainParams, shapeFactor)
+    F = mkHardyIMQTrainMatrix(trainParams, shapeFactor)
+    print('Conditioning Number = {} ... '.format(np.linalg.cond(F) / 1e9),
+          end='')
 
     # calculate the amplitudes (A) and weights/coefficients (B)
     A = np.matmul(np.transpose(basis), snapShot)
-    B = np.matmul(A,np.linalg.inv(F))
+    try:
+        B = np.matmul(A, np.linalg.pinv(np.transpose(F)))
+    except:
+        print('failed!!!!!!')
+        quit()
 
-    print('took {:3.3f} sec'.format(time.time()-start))
+    print('took {:3.3f} sec'.format(time.time() - start))
 
     return B
 
@@ -143,15 +199,12 @@ def infRBF(basis, weights, shapeFactor, trainParams, infParams):
     start = time.time()
 
     # build the Radial Basis Function (RBF) matrix
-    F = mkHardyIMQMatrix(trainParams, infParams, shapeFactor)
+    F = mkHardyIMQInfMatrix(trainParams, infParams, shapeFactor)
 
     # calculate the inferenced solution
     A = np.matmul(weights, np.transpose(F))
     inference = np.matmul(basis, A)
 
-    print('took {:3.3f} sec'.format(time.time()-start))
+    print('took {:3.3f} sec'.format(time.time() - start))
 
-    return inference
-
-
-
+    return inference.astype(np.uint8)
