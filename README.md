@@ -5,6 +5,7 @@ Given a 'snapshot' matrix of the data points with varying parameters, this code 
 
 ## Example
 
-In the [example](https://github.com/kylebeggs/POD-RBF/tree/master/example) folder you can find a Python file that demonsrates how to use the package. This generates data (i.e. the snapshot matrix) and interpolates on it.
+In the [example](https://github.com/kylebeggs/POD-RBF/tree/master/example) folder you can find a Python file that demonstrates how to use the package. This generates data (i.e. the snapshot matrix) and interpolates on it.
 
-The example demonstarted here is a simple heat conduction in a 2D square domain. This was picked because an exact solution exists to the 2D heat equation with no heat geeneration. The exact solution is used to generate the snapshot matrix.
+The example demonstrated here is a simple heat conduction in a 2D square domain. This was picked because an exact solution exists to the 2D heat equation with no heat generation. The exact solution is used to generate the snapshot matrix.
+
