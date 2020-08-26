@@ -1,4 +1,4 @@
-import sys
+import sys, os
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -37,7 +37,6 @@ def mkSnapshotMatrix(params, num_points):
         for j in range(0, num_terms):
             T = T + C[j] * np.cosh(lambs[j] * X) * np.cos(lambs[j] * Y)
         snapshot[:, i] = T.flatten()
-        del C
 
     print("took {:3.3f} sec".format(time.time() - start))
 
@@ -46,10 +45,9 @@ def mkSnapshotMatrix(params, num_points):
 
 if __name__ == "__main__":
 
-    sys.path.insert(0, "/home/kylebeggs/CERT/kylebeggs/pro/code/pod")
     import pod_rbf as p
 
-    T_L = np.linspace(1, 100, num=3)
+    T_L = np.linspace(1, 100, num=11)
     T_L = np.expand_dims(T_L, axis=0)
     T_L_test = np.array([55])
     num_points = 41
@@ -79,7 +77,7 @@ if __name__ == "__main__":
         T_test = T_test + C[n] * np.cosh(lambs[n] * X) * np.cos(lambs[n] * Y)
 
     # inference the trained RBF network
-    model = p.pod_rbf(energy_threshold=0.2)
+    model = p.pod_rbf(energy_threshold=0.99)
     model.train(snapshot, T_L)
     sol = model.inference(T_L_test)
 
@@ -92,8 +90,9 @@ if __name__ == "__main__":
     fig.colorbar(c)
 
     fig = plt.figure(figsize=(12, 9))
-    diff = (sol.reshape((num_points, num_points)) - T_test) / T_test * 100
+    diff = np.abs(sol.reshape((num_points, num_points)) - T_test) / T_test * 100
     c = plt.pcolormesh(diff, cmap="magma")
     fig.colorbar(c)
 
     plt.show()
+
