@@ -1,12 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.tri as tri
 import pod_rbf
 
 Re = np.linspace(0, 1000, num=11)
 Re[0] = 1
 
-coords_path = "example/data/train/re-0001.csv"
+coords_path = "examples/lid-driven-cavity/data/train/re-0001.csv"
 x, y = np.loadtxt(
     coords_path,
     delimiter=",",
@@ -15,44 +14,52 @@ x, y = np.loadtxt(
     unpack=True,
 )
 
-# make snapshot matrix
-train_snapshot = pod_rbf.mkSnapshotMatrix("example/data/train/re-%.csv")
+# make snapshot matrix from csv files
+train_snapshot = pod_rbf.mkSnapshotMatrix(
+    "examples/lid-driven-cavity/data/train/re-%.csv"
+)
 
 # load validation
 val = np.loadtxt(
-    "example/data/validation/re-0050.csv",
+    "examples/lid-driven-cavity/data/validation/re-0450.csv",
     delimiter=",",
     skiprows=1,
     usecols=(0),
     unpack=True,
 )
 
-
-# inference the trained RBF network
-model = pod_rbf.pod_rbf(energy_threshold=0.9999)
-model.train(train_snapshot, Re)
-sol = model.inference(50)
+model = pod_rbf.pod_rbf()  # create model object
+model.train(train_snapshot, Re)  # train the model
+sol = model.inference(450)  # inference the model on an unseen parameter
 
 # plot the inferenced solution
-fig, ax = plt.subplots(1, 1, figsize=(12, 9))
-cntr = ax.tricontourf(
-    x, y, sol, levels=np.linspace(0, 1, num=100), cmap="viridis", extend="both"
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(22, 9))
+fig.suptitle("Re = 450", fontsize=20)
+ax1.set_title("POD-RBF", fontsize=16)
+cntr1 = ax1.tricontourf(
+    x, y, sol, levels=np.linspace(0, 1, num=20), cmap="viridis", extend="both"
 )
-fig.colorbar(cntr)
+ax1.set_xticks([])
+ax1.set_yticks([])
 
 # plot the actual solution
-fig, ax = plt.subplots(1, 1, figsize=(12, 9))
-cntr = ax.tricontourf(
-    x, y, val, levels=np.linspace(0, 1, num=100), cmap="viridis", extend="both"
+ax2.set_title("Target", fontsize=16)
+cntr2 = ax2.tricontourf(
+    x, y, val, levels=np.linspace(0, 1, num=20), cmap="viridis", extend="both"
 )
-fig.colorbar(cntr)
+cbar_ax = fig.add_axes([0.485, 0.15, 0.025, 0.7])
+fig.colorbar(cntr2, cax=cbar_ax)
+ax2.set_xticks([])
+ax2.set_yticks([])
 
 # calculate and plot the percent difference between inference and actual
 diff = np.nan_to_num(np.abs(sol - val) / val * 100)
-fig, ax = plt.subplots(1, 1, figsize=(12, 9))
+print("Average Percent Error = {}".format(np.mean(diff)))
+
+fig2, ax = plt.subplots(1, 1, figsize=(12, 9))
 cntr = ax.tricontourf(
-    x, y, diff, levels=np.linspace(0, 100, num=100), cmap="viridis", extend="both"
+    x, y, diff, levels=np.linspace(0, 100, num=20), cmap="viridis", extend="both"
 )
-fig.colorbar(cntr)
+fig2.colorbar(cntr)
 
 plt.show()
