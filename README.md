@@ -41,10 +41,12 @@ sol = model.inference(450)  # inference the model on an unseen parameter
 
 First, we need to build the snapshot matrix, $\bm{\mathrm{X}}$, which contains the data we are training on. It must be of the form where each column is the $k$-th 'snapshot' of the solution field given some parameter, $p_k$, with $n$ samples in the snapshot.
 
-> $$ \bm{u}_k = \begin{bmatrix} \bm{u}(x_1,p_k)\\ \bm{u}(x_2,p_k)\\ \vdots \\ \bm{u}(x_n,p_k) \end{bmatrix} $$
+![snapshot equation](examples/lid-driven-cavity/eq-snapshot.png)
 
 The snapshot matrix would then look like
-> $$ \bm{\mathrm{X}} = [\bm{u}_1, \bm{u}_2,\ \dots \ \bm{u}_m] $$
+
+![snapshot equation](examples/lid-driven-cavity/eq-snapshot-matrix.png)
+
 where $m$ is the number of snapshots.
 
 For example, suppose our lid-driven cavity was solved on a mesh with 400 cells and we varied the parameter of interest (Re number in this case) 10 times. We would have a matrix of size $n \mathrm{x} m=400 \mathrm{x} 10$.
