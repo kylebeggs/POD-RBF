@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pod_rbf",  # Replace with your own username
-    version="0.0.1",
+    version="1.0.0",
     author="Kyle Beggs",
     author_email="beggskw@gmail.com",
     description="Tool to perform interpolation using the Proper Orthogonal Decomposition - Radial Basis Function (POD-RBF) method.",
