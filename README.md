@@ -30,7 +30,7 @@ Re = np.linspace(0, 1000, num=11)
 Re[0] = 1
 
 # make snapshot matrix from csv files
-train_snapshot = pod_rbf.mkSnapshotMatrix("example/data/train/re-%.csv")
+train_snapshot = pod_rbf.mkSnapshotMatrix("examples/data/train/re-%.csv")
 
 model = pod_rbf.pod_rbf(energy_threshold=0.99)  # create model object
 model.train(train_snapshot, Re)  # train the model
