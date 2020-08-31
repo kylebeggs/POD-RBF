@@ -77,15 +77,17 @@ need to generate the array of input parameters that correspond to each snapshot.
 Note: it is extremely important that each input parameter maps to the same element number of the
 snapshot matrix. For example if the 5th column (index 4) then the input parameter used to generate
 that snapshot should be what you find in the 5th element (index 4) of the array, e.g.
-```train_snapshot[:,4] -> Re[4]```. the csv files are loaded in alpha-numeric order so that is why
+```train_snapshot[:,4] -> Re[4]```. The csv files are loaded in alpha-numeric order so that is why
 the input parameter array goes from  1 -> 1000.
 
 ---
 
-where ```Re``` is an array of input parameters that we are training the model on. Next, we create the model object and in only one method call, we can train our network.
+where ```Re``` is an array of input parameters that we are training the model on. Next, we create
+the model object and in only one method call, we can train our network. We choose to keep 99% of the energy in POD modes here, and that is the only input to the object creation. (99% is also the
+default, so you don't have to set that)
 
 ```python
->>> model = pod_rbf.pod_rbf()
+>>> model = pod_rbf.pod_rbf(energy_threshold=0.99)
 >>> model.train(train_snapshot, Re)
 ```
 

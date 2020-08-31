@@ -3,59 +3,6 @@ import numpy as np
 from scipy.optimize import minimize_scalar
 
 
-def mkSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
-    """Assemble the snapshot matrix.
-
-    Parameters
-    ----------
-    filename_pattern : string
-        The full path of the files to be loaded. e.g. data%03d.csv for data001.csv, data002.csv...
-
-    Returns
-    -------
-    ndarray
-        The snapshot matrix.
-    """
-
-    split_path = os.path.split(mypath_pattern)
-    dirpath = split_path[0]
-    files = [f for f in os.listdir(dirpath) if os.path.isfile(os.path.join(dirpath, f))]
-    num_files = len(files)
-    assert os.path.splitext(files[0])[1] == ".csv", "File is not a .csv - {}".format(
-        files[0]
-    )
-    num_sample_points = len(
-        np.loadtxt(
-            os.path.join(dirpath, files[0]),
-            delimiter=",",
-            skiprows=skiprows,
-            usecols=usecols,
-            unpack=True,
-        )
-    )
-
-    snapshot = np.zeros((num_sample_points, num_files))
-    i = 0
-    for f in files:
-        assert os.path.splitext(f)[1] == ".csv", "File is not a .csv - {}".format(f)
-        vals = np.loadtxt(
-            os.path.join(dirpath, f),
-            delimiter=",",
-            skiprows=skiprows,
-            usecols=usecols,
-            unpack=True,
-        )
-        assert (
-            len(vals) == num_sample_points
-        ), "Number of sample points in {} is not consistent with the other files.".format(
-            f
-        )
-        snapshot[:, i] = vals
-        i += 1
-
-    return snapshot
-
-
 class pod_rbf:
     def __init__(self, energy_threshold=0.99):
         self.energy_threshold = energy_threshold
@@ -68,7 +15,7 @@ class pod_rbf:
         snapshot : ndarray
             The matrix containing data points for each parameter as columns.
         energyThreshold : float
-            The percent of energy to keep in the system.
+            The minimum percent of energy to keep in the system.
 
         Returns
         -------
@@ -77,40 +24,22 @@ class pod_rbf:
 
         """
 
-        # compute the covarience matrix and corresponding eigenvalues and eigenvectors
-        cov = np.matmul(np.transpose(self.snapshot), self.snapshot)
-        self.eig_vals, self.eig_vecs = np.linalg.eigh(cov)
-        self.eig_vals = np.abs(self.eig_vals.real)
-        self.eig_vecs = self.eig_vecs.real
-        # rearrange eigenvalues and eigenvectors from largest -> smallest
-        self.eig_vals = self.eig_vals[::-1]
-        self.eig_vecs = self.eig_vecs[:, ::-1]
+        # calculate the SVD of the snapshot
+        U, S, V = np.linalg.svd(self.snapshot)
 
-        # compute the energy in the system
-        self.energy = self.eig_vals / np.sum(self.eig_vals)
-
-        # truncate the eigenvalues and eigenvectors
-        total_energy = 0
-        self.trunc_id = None
-        for i in range(len(self.energy)):
-            total_energy += self.energy[i]
-            if total_energy > self.energy_threshold:
-                self.trunc_id = i + 1
-                break
-        if self.trunc_id is None:
-            raise AttributeError(
-                "trunc_id is None. energy_threshold is most likely set as a value higher then the energy contained in the first POD mode."
-            )
+        # calculate the truncated POD basis based on the amount of energy/POD modes required
+        self.cumul_energy = np.cumsum(S) / np.sum(S)
+        if self.energy_threshold >= 1:
+            self.truncated_cumul_energy = 1
+            trunc_id = len(S)
+            return U
+        elif self.energy_threshold < self.cumul_energy[0]:
+            trunc_id = 1
         else:
-            self.energy = self.energy[: self.trunc_id]
-            self.eig_vals = self.eig_vals[: self.trunc_id]
-            self.eig_vecs = self.eig_vecs[:, : self.trunc_id]
+            trunc_id = np.argmax(self.cumul_energy > self.energy_threshold)
 
-        # calculate the truncated POD basis
-        basis = np.matmul(self.snapshot, self.eig_vecs)
-        for i in range(len(self.eig_vals)):
-            basis[:, i] = basis[:, i] / np.sqrt(self.eig_vals[i])
-
+        self.truncated_energy = self.cumul_energy[trunc_id]
+        basis = U[:, : (trunc_id + 1)]
         return basis
 
     def _objectiveFuncShapeParam(self, shape_factor, sum, target_cond_num):
@@ -271,3 +200,56 @@ class pod_rbf:
         inference = np.matmul(self.basis, A)
 
         return inference[:, 0]
+
+
+def mkSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
+    """Assemble the snapshot matrix.
+
+    Parameters
+    ----------
+    filename_pattern : string
+        The full path of the files to be loaded. e.g. data%03d.csv for data001.csv, data002.csv...
+
+    Returns
+    -------
+    ndarray
+        The snapshot matrix.
+    """
+
+    split_path = os.path.split(mypath_pattern)
+    dirpath = split_path[0]
+    files = [f for f in os.listdir(dirpath) if os.path.isfile(os.path.join(dirpath, f))]
+    num_files = len(files)
+    assert os.path.splitext(files[0])[1] == ".csv", "File is not a .csv - {}".format(
+        files[0]
+    )
+    num_sample_points = len(
+        np.loadtxt(
+            os.path.join(dirpath, files[0]),
+            delimiter=",",
+            skiprows=skiprows,
+            usecols=usecols,
+            unpack=True,
+        )
+    )
+
+    snapshot = np.zeros((num_sample_points, num_files))
+    i = 0
+    for f in files:
+        assert os.path.splitext(f)[1] == ".csv", "File is not a .csv - {}".format(f)
+        vals = np.loadtxt(
+            os.path.join(dirpath, f),
+            delimiter=",",
+            skiprows=skiprows,
+            usecols=usecols,
+            unpack=True,
+        )
+        assert (
+            len(vals) == num_sample_points
+        ), "Number of sample points in {} is not consistent with the other files.".format(
+            f
+        )
+        snapshot[:, i] = vals
+        i += 1
+
+    return snapshot
