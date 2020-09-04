@@ -25,7 +25,7 @@ class pod_rbf:
         """
 
         # calculate the SVD of the snapshot
-        U, S, V = np.linalg.svd(self.snapshot)
+        U, S, V = np.linalg.svd(self.snapshot, full_matrices=False)
 
         # calculate the truncated POD basis based on the amount of energy/POD modes required
         self.cumul_energy = np.cumsum(S) / np.sum(S)
