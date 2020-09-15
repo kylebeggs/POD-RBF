@@ -1,12 +1,17 @@
 # POD-RBF
 
+![Re-450](examples/lid-driven-cavity/results-re-450.png)
+
 A Python package for building a Reduced Order Model (ROM) from high-dimensional data using a Proper
 Orthogonal Decomposition - Radial Basis Function (POD-RBF) Network.
 
 Given a 'snapshot' matrix of the data points with varying parameters, this code contains functions
 to find the truncated POD basis and interpolate using a RBF network for new parameters.
 
-![Re-450](examples/lid-driven-cavity/results-re-450.png)
+Features:
+
+* Shape parameter optimization for the Radial basis Functions (RBFs)
+* Algorithm switching based on memory requirements (eigenvalue decomposition vs. SVD)
 
 ## Installation
 
