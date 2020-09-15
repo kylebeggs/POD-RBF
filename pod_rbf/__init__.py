@@ -1,3 +1,3 @@
 from .pod_rbf import *
 
-__version__ = "1.0.2"
+__version__ = "1.0.3"

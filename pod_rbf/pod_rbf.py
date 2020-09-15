@@ -24,22 +24,57 @@ class pod_rbf:
 
         """
 
-        # calculate the SVD of the snapshot
-        U, S, V = np.linalg.svd(self.snapshot, full_matrices=False)
+        # set memory limit (in gigabytes) to switch to a more efficient algorithm
+        self.mem_limit = 32  # gigabytes
 
-        # calculate the truncated POD basis based on the amount of energy/POD modes required
-        self.cumul_energy = np.cumsum(S) / np.sum(S)
-        if self.energy_threshold >= 1:
-            self.truncated_cumul_energy = 1
-            trunc_id = len(S)
-            return U
-        elif self.energy_threshold < self.cumul_energy[0]:
-            trunc_id = 1
+        # calculate the memory in gigabytes
+        memory = self.snapshot.nbytes / 1e9
+
+        if memory < self.mem_limit:
+            # calculate the SVD of the snapshot
+            U, S, _ = np.linalg.svd(self.snapshot, full_matrices=False)
+
+            # calculate the truncated POD basis based on the amount of energy/POD modes required
+            self.cumul_energy = np.cumsum(S) / np.sum(S)
+            if self.energy_threshold >= 1:
+                self.truncated_cumul_energy = 1
+                trunc_id = len(S)
+                return U
+            elif self.energy_threshold < self.cumul_energy[0]:
+                trunc_id = 1
+            else:
+                trunc_id = np.argmax(self.cumul_energy > self.energy_threshold)
+
+            self.truncated_energy = self.cumul_energy[trunc_id]
+            basis = U[:, : (trunc_id + 1)]
         else:
-            trunc_id = np.argmax(self.cumul_energy > self.energy_threshold)
+            print("using eig!!!!")
+            # compute the covarience matrix and corresponding eigenvalues and eigenvectors
+            cov = np.matmul(np.transpose(self.snapshot), self.snapshot)
+            self.eig_vals, self.eig_vecs = np.linalg.eigh(cov)
+            self.eig_vals = np.abs(self.eig_vals.real)
+            self.eig_vecs = self.eig_vecs.real
+            # rearrange eigenvalues and eigenvectors from largest -> smallest
+            self.eig_vals = self.eig_vals[::-1]
+            self.eig_vecs = self.eig_vecs[:, ::-1]
 
-        self.truncated_energy = self.cumul_energy[trunc_id]
-        basis = U[:, : (trunc_id + 1)]
+            # calculate the truncated POD basis based on the amount of energy/POD modes required
+            self.cumul_energy = np.cumsum(self.eig_vals) / np.sum(self.eig_vals)
+            if self.energy_threshold >= 1:
+                self.truncated_cumul_energy = 1
+                trunc_id = len(self.eig_vals)
+            elif self.energy_threshold < self.cumul_energy[0]:
+                trunc_id = 1
+            else:
+                trunc_id = np.argmax(self.cumul_energy > self.energy_threshold)
+
+            self.truncated_energy = self.cumul_energy[trunc_id]
+            self.eig_vals = self.eig_vals[: (trunc_id + 1)]
+            self.eig_vecs = self.eig_vecs[:, : (trunc_id + 1)]
+
+            # calculate the truncated POD basis
+            basis = np.matmul(self.snapshot, self.eig_vecs) / np.sqrt(self.eig_vals)
+
         return basis
 
     def _objectiveFuncShapeParam(self, shape_factor, sum, target_cond_num):
