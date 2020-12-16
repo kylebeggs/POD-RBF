@@ -16,7 +16,7 @@ x, y = np.loadtxt(
 )
 
 # make snapshot matrix from csv files
-train_snapshot = pod_rbf.mkSnapshotMatrix(
+train_snapshot = pod_rbf.buildSnapshotMatrix(
     "examples/lid-driven-cavity/data/train/re-%.csv"
     # "data/train/re-%.csv"
 )
@@ -33,7 +33,10 @@ val = np.loadtxt(
 
 model = pod_rbf.pod_rbf()  # create model object
 model.train(train_snapshot, Re)  # train the model
-sol = model.inference(50)  # inference the model on an unseen parameter
+print("Energy kept after truncating = {}%".format(model.truncated_energy))
+print(model.shape_factor)
+
+sol = model.inference(450)  # inference the model on an unseen parameter
 
 # plot the inferenced solution
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(22, 9))
@@ -50,20 +53,18 @@ ax2.set_title("Target", fontsize=40)
 cntr2 = ax2.tricontourf(
     x, y, val, levels=np.linspace(0, 1, num=20), cmap="viridis", extend="both"
 )
-# cbar_ax = fig.add_axes([0.485, 0.15, 0.025, 0.7])
-# fig.colorbar(cntr2, cax=cbar_ax)
+cbar_ax = fig.add_axes([0.485, 0.15, 0.025, 0.7])
+fig.colorbar(cntr2, cax=cbar_ax)
 ax2.set_xticks([])
 ax2.set_yticks([])
-fig.tight_layout()
+# fig.tight_layout()
 
-# calculate and plot the percent difference between inference and actual
-diff = np.nan_to_num(np.abs(sol - val) / val * 100)
+# calculate and plot the difference between inference and actual
+diff = np.nan_to_num(np.abs(sol - val))
 print("Average Percent Error = {}".format(np.mean(diff)))
 
 fig2, ax = plt.subplots(1, 1, figsize=(12, 9))
-cntr = ax.tricontourf(
-    x, y, diff, levels=np.linspace(0, 100, num=20), cmap="viridis", extend="both"
-)
+cntr = ax.tricontourf(x, y, diff, cmap="viridis", extend="both")
 fig2.colorbar(cntr)
 
 plt.show()

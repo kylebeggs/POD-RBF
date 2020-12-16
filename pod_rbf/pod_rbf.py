@@ -25,7 +25,7 @@ class pod_rbf:
         """
 
         # set memory limit (in gigabytes) to switch to a more efficient algorithm
-        self.mem_limit = 32  # gigabytes
+        self.mem_limit = 16  # gigabytes
 
         # calculate the memory in gigabytes
         memory = self.snapshot.nbytes / 1e9
@@ -37,11 +37,11 @@ class pod_rbf:
             # calculate the truncated POD basis based on the amount of energy/POD modes required
             self.cumul_energy = np.cumsum(S) / np.sum(S)
             if self.energy_threshold >= 1:
-                self.truncated_cumul_energy = 1
+                self.truncated_energy = 1
                 trunc_id = len(S)
                 return U
             elif self.energy_threshold < self.cumul_energy[0]:
-                trunc_id = 1
+                trunc_id = 0
             else:
                 trunc_id = np.argmax(self.cumul_energy > self.energy_threshold)
 
@@ -77,60 +77,54 @@ class pod_rbf:
 
         return basis
 
-    def _objectiveFuncShapeParam(self, shape_factor, sum, target_cond_num):
-        return (
-            np.linalg.cond(1 / np.sqrt(sum + shape_factor ** 2)) - target_cond_num
-        ) ** 2
-
-    def _findOptimShapeParam(self, target_cond_num=1e6):
-        sum = np.zeros((len(self.train_params[0, :]), len(self.train_params[0, :])))
-        for i in range(self.train_params.shape[0]):
+    def _buildCollocationMatrix(self, c):
+        num_train_points = self.train_params.shape[1]
+        num_params = self.train_params.shape[0]
+        r2 = np.zeros((num_train_points, num_train_points))
+        for i in range(num_params):
             I, J = np.meshgrid(
                 self.train_params[i, :],
                 self.train_params[i, :],
                 indexing="ij",
                 copy=False,
             )
-            sum += np.abs(I - J)
-        res = minimize_scalar(
-            self._objectiveFuncShapeParam,
-            method="bounded",
-            bounds=(1e-4, 1e4),
-            args=(sum, target_cond_num),
-        )
-        return res.x
+            r2 += (I - J) ** 2
+        # return 1 / np.sqrt(r2 + c ** 2)
+        return 1 / np.sqrt((r2 / c ** 2) + 1)
 
-    def _mkRBFTrainMatrix(self):
-        """Make the Radial Basis Function (RBF) matrix using the
-         Hardy Inverse Multi-Qualdrics (IMQ) function
+    def _findOptimShapeParam(
+        self, cond_range=[1e10, 1e11], factor_start=1, max_steps=1e5
+    ):
+        optim_c = 1
+        found_optim_c = False
+        k = 0
+        factor = factor_start
+        diff = np.diff(np.sort(self.train_params, axis=1), axis=1)
+        avgDist = np.sqrt(np.sum(np.mean(diff, axis=1) ** 2))
+        print("avg dist = {}".format(avgDist))
+        while found_optim_c is False:
+            k += 1
+            optim_c = factor * avgDist
+            if optim_c < 0:
+                print("WARNING: SHAPE FACTOR IS LESS THAN 0")
+                break
+            C = self._buildCollocationMatrix(optim_c)
+            cond = np.linalg.cond(C)
+            if cond <= cond_range[0]:
+                factor += 0.1
+            if cond > cond_range[1]:
+                factor -= 0.1
+            if cond > cond_range[0] and cond < cond_range[1]:
+                found_optim_c = True
+            if cond < 0.1:
+                found_optim_c = True
+            if k > max_steps:
+                print("WARNING: MAX STEPS")
+                break
 
-        Parameters
-        ----------
-        train_params : ndarray
-            The parameters used to generate the snapshot matrix.
-        shape_factor : float
-            The shape factor to be used in the RBF network.
+        return optim_c
 
-        Returns
-        -------
-        ndarray
-            The RBF matrix.
-
-        """
-
-        sum = np.zeros((len(self.train_params[0, :]), len(self.train_params[0, :])))
-        for i in range(self.train_params.shape[0]):
-            I, J = np.meshgrid(
-                self.train_params[i, :],
-                self.train_params[i, :],
-                indexing="ij",
-                copy=False,
-            )
-            sum += np.abs(I - J)
-
-        return 1 / np.sqrt(sum + self.shape_factor ** 2)
-
-    def _mkRBFInferenceMatrix(self, inf_params):
+    def _buildRBFInferenceMatrix(self, inf_params):
         """Make the Radial Basis Function (RBF) matrix using the
          Hardy Inverse Multi-Qualdrics (IMQ) function
 
@@ -150,14 +144,17 @@ class pod_rbf:
 
         """
 
-        sum = np.zeros((1, len(self.train_params[0, :])))
-        for i in range(self.train_params.shape[0]):
+        num_params = self.train_params.shape[0]
+        num_train_points = self.train_params.shape[1]
+        r2 = np.zeros((num_params, num_train_points))
+        for i in range(num_params):
             I, J = np.meshgrid(
-                inf_params[i], self.train_params[i, :], indexing="ij", copy=False
+                inf_params[i, :], self.train_params[i, :], indexing="ij", copy=False
             )
-            sum += np.abs(I - J)
+            r2 += (I - J) ** 2
 
-        return 1 / np.sqrt(sum + self.shape_factor ** 2)
+        # return 1 / np.sqrt(r2 + self.shape_factor ** 2)
+        return 1 / np.sqrt((r2 / self.shape_factor ** 2) + 1)
 
     def train(self, snapshot, train_params):
         """
@@ -190,7 +187,7 @@ class pod_rbf:
         self.basis = self._calcTruncatedPODBasis()
 
         # build the Radial Basis Function (RBF) matrix
-        F = self._mkRBFTrainMatrix()
+        F = self._buildCollocationMatrix(self.shape_factor)
 
         # calculate the amplitudes (A) and weights/coefficients (B)
         A = np.matmul(np.transpose(self.basis), self.snapshot)
@@ -228,7 +225,7 @@ class pod_rbf:
             inf_params = np.expand_dims(inf_params, axis=0)
 
         # build the Radial Basis Function (RBF) matrix
-        F = self._mkRBFInferenceMatrix(inf_params)
+        F = self._buildRBFInferenceMatrix(inf_params)
 
         # calculate the inferenced solution
         A = np.matmul(self.weights, np.transpose(F))
@@ -237,7 +234,7 @@ class pod_rbf:
         return inference[:, 0]
 
 
-def mkSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
+def buildSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
     """Assemble the snapshot matrix.
 
     Parameters
@@ -253,7 +250,11 @@ def mkSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
 
     split_path = os.path.split(mypath_pattern)
     dirpath = split_path[0]
-    files = [f for f in os.listdir(dirpath) if os.path.isfile(os.path.join(dirpath, f))]
+    files = [
+        f
+        for f in sorted(os.listdir(dirpath))
+        if os.path.isfile(os.path.join(dirpath, f))
+    ]
     num_files = len(files)
     assert os.path.splitext(files[0])[1] == ".csv", "File is not a .csv - {}".format(
         files[0]
