@@ -105,8 +105,7 @@ class pod_rbf:
             k += 1
             optim_c = factor * avgDist
             if optim_c < 0:
-                print("WARNING: SHAPE FACTOR IS LESS THAN 0")
-                break
+                ValueError("Shape parameter is negative.")
             C = self._buildCollocationMatrix(optim_c)
             cond = np.linalg.cond(C)
             if cond <= cond_range[0]:
