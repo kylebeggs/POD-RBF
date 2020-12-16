@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def mkSnapshotMatrix(params, num_points):
+def buildSnapshotMatrix(params, num_points):
     """
     Assemble the snapshot matrix
     """
@@ -53,7 +53,7 @@ if __name__ == "__main__":
     num_points = 41
 
     # make snapshot matrix
-    snapshot = mkSnapshotMatrix(T_L, num_points)
+    snapshot = buildSnapshotMatrix(T_L, num_points)
 
     # calculate 'test' solution
     # evaluate the analytical solution
@@ -95,4 +95,3 @@ if __name__ == "__main__":
     fig.colorbar(c)
 
     plt.show()
-
