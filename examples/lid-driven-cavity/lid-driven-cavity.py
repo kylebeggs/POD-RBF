@@ -34,7 +34,6 @@ val = np.loadtxt(
 model = pod_rbf.pod_rbf()  # create model object
 model.train(train_snapshot, Re)  # train the model
 print("Energy kept after truncating = {}%".format(model.truncated_energy))
-print(model.shape_factor)
 
 sol = model.inference(450)  # inference the model on an unseen parameter
 

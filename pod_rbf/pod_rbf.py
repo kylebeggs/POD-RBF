@@ -101,7 +101,6 @@ class pod_rbf:
         factor = factor_start
         diff = np.diff(np.sort(self.train_params, axis=1), axis=1)
         avgDist = np.sqrt(np.sum(np.mean(diff, axis=1) ** 2))
-        print("avg dist = {}".format(avgDist))
         while found_optim_c is False:
             k += 1
             optim_c = factor * avgDist
