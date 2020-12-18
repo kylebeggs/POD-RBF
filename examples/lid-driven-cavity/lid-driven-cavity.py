@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pod_rbf
 
+print("using version: {}".format(pod_rbf.__version__))
+
 Re = np.linspace(0, 1000, num=11)
 Re[0] = 1
 
@@ -34,12 +36,12 @@ val = np.loadtxt(
 model = pod_rbf.pod_rbf()  # create model object
 model.train(train_snapshot, Re)  # train the model
 print("Energy kept after truncating = {}%".format(model.truncated_energy))
+print("Cumulative Energy = {}%".format(model.cumul_energy))
 
 sol = model.inference(450)  # inference the model on an unseen parameter
 
 # plot the inferenced solution
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(22, 9))
-# fig.suptitle("Re = 50", fontsize=20)
 ax1.set_title("POD-RBF", fontsize=40)
 cntr1 = ax1.tricontourf(
     x, y, sol, levels=np.linspace(0, 1, num=20), cmap="viridis", extend="both"

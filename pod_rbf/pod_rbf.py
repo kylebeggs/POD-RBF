@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from scipy.optimize import minimize_scalar
 
 
 class pod_rbf:
@@ -73,7 +72,7 @@ class pod_rbf:
             self.eig_vecs = self.eig_vecs[:, : (trunc_id + 1)]
 
             # calculate the truncated POD basis
-            basis = np.matmul(self.snapshot, self.eig_vecs) / np.sqrt(self.eig_vals)
+            basis = (self.snapshot @ self.eig_vecs) / np.sqrt(self.eig_vals)
 
         return basis
 
@@ -128,12 +127,8 @@ class pod_rbf:
 
         Parameters
         ----------
-        train_params : ndarray
-            The parameters used to generate the snapshot matrix.
         inf_params : ndarray
             The parameters to inference the RBF network on.
-        shape_factor : float
-            The shape factor to be used in the RBF network.
 
         Returns
         -------
@@ -141,6 +136,9 @@ class pod_rbf:
             The RBF matrix.
 
         """
+
+        if inf_params.ndim < 2:
+            inf_params = np.expand_dims(inf_params, axis=0)
 
         num_params = self.train_params.shape[0]
         num_train_points = self.train_params.shape[1]
