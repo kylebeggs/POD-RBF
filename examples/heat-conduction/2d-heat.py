@@ -77,9 +77,12 @@ if __name__ == "__main__":
         T_test = T_test + C[n] * np.cosh(lambs[n] * X) * np.cos(lambs[n] * Y)
 
     # inference the trained RBF network
-    model = p.pod_rbf(energy_threshold=0.99)
+    model = p.pod_rbf(energy_threshold=0.5)
     model.train(snapshot, T_L)
     sol = model.inference(T_L_test)
+
+    print("Energy kept after truncating = {}%".format(model.truncated_energy))
+    print("Cumulative Energy = {}%".format(model.cumul_energy))
 
     fig = plt.figure(figsize=(12, 9))
     c = plt.pcolormesh(T_test, cmap="magma")

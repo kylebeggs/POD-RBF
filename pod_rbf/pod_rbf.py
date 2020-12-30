@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from tqdm import tqdm
 
 
 class pod_rbf:
@@ -87,30 +88,25 @@ class pod_rbf:
                 indexing="ij",
                 copy=False,
             )
-            r2 += (I - J) ** 2
-        # return 1 / np.sqrt(r2 + c ** 2)
-        return 1 / np.sqrt((r2 / c ** 2) + 1)
+            r2 += ((I - J) / self.params_range[i]) ** 2
+        return 1 / np.sqrt(r2 + c ** 2)
 
-    def _findOptimShapeParam(
-        self, cond_range=[1e10, 1e11], factor_start=1, max_steps=1e5
-    ):
+    def _findOptimShapeParam(self, cond_range=[1e11, 1e12], max_steps=1e5):
         optim_c = 1
         found_optim_c = False
         k = 0
-        factor = factor_start
         diff = np.diff(np.sort(self.train_params, axis=1), axis=1)
         avgDist = np.sqrt(np.sum(np.mean(diff, axis=1) ** 2))
         while found_optim_c is False:
             k += 1
-            optim_c = factor * avgDist
             if optim_c < 0:
                 ValueError("Shape parameter is negative.")
             C = self._buildCollocationMatrix(optim_c)
             cond = np.linalg.cond(C)
             if cond <= cond_range[0]:
-                factor += 0.1
+                optim_c += 0.01
             if cond > cond_range[1]:
-                factor -= 0.1
+                optim_c -= 0.01
             if cond > cond_range[0] and cond < cond_range[1]:
                 found_optim_c = True
             if cond < 0.1:
@@ -137,20 +133,22 @@ class pod_rbf:
 
         """
 
-        if inf_params.ndim < 2:
-            inf_params = np.expand_dims(inf_params, axis=0)
+        inf_params = np.transpose(inf_params)
+        assert inf_params.shape[0] == self.train_params.shape[0]
 
         num_params = self.train_params.shape[0]
         num_train_points = self.train_params.shape[1]
         r2 = np.zeros((num_params, num_train_points))
         for i in range(num_params):
             I, J = np.meshgrid(
-                inf_params[i, :], self.train_params[i, :], indexing="ij", copy=False
+                inf_params[i, :],
+                self.train_params[i, :],
+                indexing="ij",
+                copy=False,
             )
-            r2 += (I - J) ** 2
+            r2 += ((I - J) / self.params_range[i]) ** 2
 
-        # return 1 / np.sqrt(r2 + self.shape_factor ** 2)
-        return 1 / np.sqrt((r2 / self.shape_factor ** 2) + 1)
+        return 1 / np.sqrt(r2 + self.shape_factor ** 2)
 
     def train(self, snapshot, train_params):
         """
@@ -173,6 +171,20 @@ class pod_rbf:
             The weights/coefficients of the RBF network.
 
         """
+        if train_params.ndim < 2:
+            assert (
+                snapshot.shape[1] == train_params.shape[0]
+            ), "Number of parameter points ({}) and snapshots ({}) not the same".format(
+                train_params.shape[1], snapshot.shape[1]
+            )
+            self.params_range = np.array([np.ptp(train_params, axis=0)])
+        else:
+            assert (
+                snapshot.shape[1] == train_params.shape[1]
+            ), "Number of parameter points ({}) and snapshots ({}) not the same".format(
+                train_params.shape[1], snapshot.shape[1]
+            )
+            self.params_range = np.ptp(train_params, axis=1)
         self.snapshot = snapshot
         if train_params.ndim < 2:
             self.train_params = np.expand_dims(train_params, axis=0)
@@ -187,11 +199,7 @@ class pod_rbf:
 
         # calculate the amplitudes (A) and weights/coefficients (B)
         A = np.matmul(np.transpose(self.basis), self.snapshot)
-        try:
-            self.weights = np.matmul(A, np.linalg.pinv(np.transpose(F)))
-        except:
-            print("failed!!!!!!")
-            quit()
+        self.weights = A @ np.linalg.pinv(F.T)
 
     def inference(self, inf_params):
         """Inference the RBF network with an unseen parameter.
@@ -230,7 +238,9 @@ class pod_rbf:
         return inference[:, 0]
 
 
-def buildSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
+def buildSnapshotMatrix(
+    mypath_pattern, skiprows=1, usecols=(0), split=1, verbose=False
+):
     """Assemble the snapshot matrix.
 
     Parameters
@@ -246,13 +256,16 @@ def buildSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
 
     split_path = os.path.split(mypath_pattern)
     dirpath = split_path[0]
+    print(dirpath)
     files = [
         f
         for f in sorted(os.listdir(dirpath))
         if os.path.isfile(os.path.join(dirpath, f))
     ]
     num_files = len(files)
-    assert os.path.splitext(files[0])[1] == ".csv", "File is not a .csv - {}".format(
+    assert (
+        os.path.splitext(files[0])[1] == ".csv"
+    ), "You have a file in this directory that is not a .csv named {}. All files in the directory must be .csv. Make sure to check for hidden files with a dot (.) prepended".format(
         files[0]
     )
     num_sample_points = len(
@@ -267,8 +280,16 @@ def buildSnapshotMatrix(mypath_pattern, skiprows=1, usecols=(0), split=1):
 
     snapshot = np.zeros((num_sample_points, num_files))
     i = 0
-    for f in files:
+    print("Loading snapshot .csv files...")
+    for f in tqdm(files):
+        print(f)
         assert os.path.splitext(f)[1] == ".csv", "File is not a .csv - {}".format(f)
+        assert (
+            os.path.splitext(f)[1] == ".csv"
+        ), "You have a file in this directory that is not a .csv named {}. All files in the directory must be .csv. Make sure to check for hidden files with a dot (.) prepended".format(
+            f
+        )
+
         vals = np.loadtxt(
             os.path.join(dirpath, f),
             delimiter=",",
