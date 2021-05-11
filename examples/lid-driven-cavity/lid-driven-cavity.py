@@ -32,7 +32,7 @@ val = np.loadtxt(
     unpack=True,
 )
 
-model = pod_rbf.pod_rbf()  # create model object
+model = pod_rbf.pod_rbf(energy_threshold=0.9)  # create model object
 model.train(train_snapshot, Re)  # train the model
 print("Energy kept after truncating = {}%".format(model.truncated_energy))
 

@@ -8,6 +8,12 @@ Orthogonal Decomposition - Radial Basis Function (POD-RBF) Network.
 Given a 'snapshot' matrix of the data points with varying parameters, this code contains functions
 to find the truncated POD basis and interpolate using a RBF network for new parameters.
 
+This code is based on the following papers implementing the method:
+
+1. [Solving inverse heat conduction problems using trained POD-RBF network inverse method - Ostrowski, Bialecki, Kassab (2006)](https://www.tandfonline.com/doi/full/10.1080/17415970701198290)
+2. [RBF-trained POD-accelerated CFD analysis of wind loads on PV systems - Huayamave, Ceballos, Barriento, Seigneur, Barkaszi, Divo, and Kassab (2017)](https://www.emerald.com/insight/content/doi/10.1108/HFF-03-2016-0083/full/html)
+3. [Real-Time Thermomechanical Modeling of PV Cell Fabrication via a POD-Trained RBF Interpolation Network - Das, Khoury, Divo, Huayamave, Ceballos, Eaglin, Kassab, Payne, Yelundur, and Seigneur (2020)](https://www.techscience.com/CMES/v122n3/38374)
+
 Features:
 
 * Shape parameter optimization for the Radial basis Functions (RBFs)
@@ -47,17 +53,16 @@ sol = model.inference(450)  # inference the model on an unseen parameter
 
 ### Building the snapshot matrix
 
-First, we need to build the snapshot matrix, X, which contains the data we are training on. It must
-be of the form where each column is the k-th 'snapshot' of the solution field given some
-parameter, p_k, with n samples in the snapshot.
+First, we need to build the snapshot matrix, X, which contains the data we are training on. It must be of the form where each column is the k-th 'snapshot' of the solution field given some
+parameter, p_k, with n samples in the snapshot at locations x_n. A single snapshot is below
 
 ![snapshot equation](examples/lid-driven-cavity/eq-snapshot.png)
 
-The snapshot matrix would then look like
+and the snapshot matrix would then look like
 
 ![snapshot equation](examples/lid-driven-cavity/eq-snapshot-matrix.png)
 
-where $m$ is the number of snapshots.
+where m is the total number of snapshots.
 
 For example, suppose our lid-driven cavity was solved on a mesh with 400 cells and we varied the
 parameter of interest (Re number in this case) 10 times. We would have a matrix of size (n,m) =

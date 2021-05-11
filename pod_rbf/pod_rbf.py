@@ -1,6 +1,13 @@
+"""
+Class and methods to implement the Proper Orthogonal Decomposition - Radial 
+Basis Function (POD-RBF) method.
+
+Original Author: Kyle Beggs
+"""
 import os
 import numpy as np
 from tqdm import tqdm
+from numba import jit, njit, prange
 
 
 class pod_rbf:
@@ -8,7 +15,8 @@ class pod_rbf:
         self.energy_threshold = energy_threshold
 
     def _calcTruncatedPODBasis(self):
-        """Calculate the truncated POD basis.
+        """
+        Calculate the truncated POD basis.
 
         Parameters
         ----------
@@ -46,7 +54,7 @@ class pod_rbf:
                 trunc_id = np.argmax(self.cumul_energy > self.energy_threshold)
 
             self.truncated_energy = self.cumul_energy[trunc_id]
-            basis = U[:, : (trunc_id + 1)]
+            basis = U[:, :(trunc_id + 1)]
         else:
             print("using eig!!!!")
             # compute the covarience matrix and corresponding eigenvalues and eigenvectors
@@ -59,7 +67,8 @@ class pod_rbf:
             self.eig_vecs = self.eig_vecs[:, ::-1]
 
             # calculate the truncated POD basis based on the amount of energy/POD modes required
-            self.cumul_energy = np.cumsum(self.eig_vals) / np.sum(self.eig_vals)
+            self.cumul_energy = np.cumsum(self.eig_vals) / np.sum(
+                self.eig_vals)
             if self.energy_threshold >= 1:
                 self.truncated_cumul_energy = 1
                 trunc_id = len(self.eig_vals)
@@ -69,8 +78,8 @@ class pod_rbf:
                 trunc_id = np.argmax(self.cumul_energy > self.energy_threshold)
 
             self.truncated_energy = self.cumul_energy[trunc_id]
-            self.eig_vals = self.eig_vals[: (trunc_id + 1)]
-            self.eig_vecs = self.eig_vecs[:, : (trunc_id + 1)]
+            self.eig_vals = self.eig_vals[:(trunc_id + 1)]
+            self.eig_vecs = self.eig_vecs[:, :(trunc_id + 1)]
 
             # calculate the truncated POD basis
             basis = (self.snapshot @ self.eig_vecs) / np.sqrt(self.eig_vals)
@@ -88,15 +97,13 @@ class pod_rbf:
                 indexing="ij",
                 copy=False,
             )
-            r2 += ((I - J) / self.params_range[i]) ** 2
-        return 1 / np.sqrt(r2 + c ** 2)
+            r2 += ((I - J) / self.params_range[i])**2
+        return 1 / np.sqrt(r2 / (c**2) + 1)
 
     def _findOptimShapeParam(self, cond_range=[1e11, 1e12], max_steps=1e5):
         optim_c = 1
         found_optim_c = False
         k = 0
-        diff = np.diff(np.sort(self.train_params, axis=1), axis=1)
-        avgDist = np.sqrt(np.sum(np.mean(diff, axis=1) ** 2))
         while found_optim_c is False:
             k += 1
             if optim_c < 0:
@@ -109,8 +116,10 @@ class pod_rbf:
                 optim_c -= 0.01
             if cond > cond_range[0] and cond < cond_range[1]:
                 found_optim_c = True
-            if cond < 0.1:
-                found_optim_c = True
+            if optim_c < 0.011:
+                raise ValueError(
+                    "Shape factor cannot be less than 0. shape_factor={}".
+                    format(optim_c))
             if k > max_steps:
                 print("WARNING: MAX STEPS")
                 break
@@ -146,11 +155,10 @@ class pod_rbf:
                 indexing="ij",
                 copy=False,
             )
-            r2 += ((I - J) / self.params_range[i]) ** 2
+            r2 += ((I - J) / self.params_range[i])**2
+        return 1 / np.sqrt(r2 / (self.shape_factor**2) + 1)
 
-        return 1 / np.sqrt(r2 + self.shape_factor ** 2)
-
-    def train(self, snapshot, train_params):
+    def train(self, snapshot, train_params, shape_factor=None):
         """
         Train the Radial Basis Function (RBF) network
 
@@ -175,15 +183,13 @@ class pod_rbf:
             assert (
                 snapshot.shape[1] == train_params.shape[0]
             ), "Number of parameter points ({}) and snapshots ({}) not the same".format(
-                train_params.shape[1], snapshot.shape[1]
-            )
+                train_params.shape[1], snapshot.shape[1])
             self.params_range = np.array([np.ptp(train_params, axis=0)])
         else:
             assert (
                 snapshot.shape[1] == train_params.shape[1]
             ), "Number of parameter points ({}) and snapshots ({}) not the same".format(
-                train_params.shape[1], snapshot.shape[1]
-            )
+                train_params.shape[1], snapshot.shape[1])
             self.params_range = np.ptp(train_params, axis=1)
         self.snapshot = snapshot
         if train_params.ndim < 2:
@@ -191,7 +197,10 @@ class pod_rbf:
         else:
             self.train_params = train_params
 
-        self.shape_factor = self._findOptimShapeParam()
+        if shape_factor is None:
+            self.shape_factor = self._findOptimShapeParam()
+        else:
+            self.shape_factor = shape_factor
         self.basis = self._calcTruncatedPODBasis()
 
         # build the Radial Basis Function (RBF) matrix
@@ -238,9 +247,11 @@ class pod_rbf:
         return inference[:, 0]
 
 
-def buildSnapshotMatrix(
-    mypath_pattern, skiprows=1, usecols=(0), split=1, verbose=False
-):
+def buildSnapshotMatrix(mypath_pattern,
+                        skiprows=1,
+                        usecols=(0),
+                        split=1,
+                        verbose=False):
     """Assemble the snapshot matrix.
 
     Parameters
@@ -258,16 +269,14 @@ def buildSnapshotMatrix(
     dirpath = split_path[0]
     print(dirpath)
     files = [
-        f
-        for f in sorted(os.listdir(dirpath))
+        f for f in sorted(os.listdir(dirpath))
         if os.path.isfile(os.path.join(dirpath, f))
     ]
     num_files = len(files)
     assert (
         os.path.splitext(files[0])[1] == ".csv"
     ), "You have a file in this directory that is not a .csv named {}. All files in the directory must be .csv. Make sure to check for hidden files with a dot (.) prepended".format(
-        files[0]
-    )
+        files[0])
     num_sample_points = len(
         np.loadtxt(
             os.path.join(dirpath, files[0]),
@@ -275,20 +284,17 @@ def buildSnapshotMatrix(
             skiprows=skiprows,
             usecols=usecols,
             unpack=True,
-        )
-    )
+        ))
 
     snapshot = np.zeros((num_sample_points, num_files))
     i = 0
-    print("Loading snapshot .csv files...")
-    for f in tqdm(files):
-        print(f)
-        assert os.path.splitext(f)[1] == ".csv", "File is not a .csv - {}".format(f)
+    for f in tqdm(files, desc="Loading snapshot .csv files"):
+        assert os.path.splitext(
+            f)[1] == ".csv", "File is not a .csv - {}".format(f)
         assert (
             os.path.splitext(f)[1] == ".csv"
         ), "You have a file in this directory that is not a .csv named {}. All files in the directory must be .csv. Make sure to check for hidden files with a dot (.) prepended".format(
-            f
-        )
+            f)
 
         vals = np.loadtxt(
             os.path.join(dirpath, f),
@@ -300,8 +306,7 @@ def buildSnapshotMatrix(
         assert (
             len(vals) == num_sample_points
         ), "Number of sample points in {} is not consistent with the other files.".format(
-            f
-        )
+            f)
         snapshot[:, i] = vals
         i += 1
 
