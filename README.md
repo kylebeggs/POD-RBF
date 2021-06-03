@@ -10,7 +10,7 @@ to find the truncated POD basis and interpolate using a RBF network for new para
 
 This code is based on the following papers implementing the method:
 
-1. [Solving inverse heat conduction problems using trained POD-RBF network inverse method - Ostrowski, Bialecki, Kassab (2006)](https://www.tandfonline.com/doi/full/10.1080/17415970701198290)
+1. [Solving inverse heat conduction problems using trained POD-RBF network inverse method - Ostrowski, Bialecki, Kassab (2008)](https://www.tandfonline.com/doi/full/10.1080/17415970701198290)
 2. [RBF-trained POD-accelerated CFD analysis of wind loads on PV systems - Huayamave, Ceballos, Barriento, Seigneur, Barkaszi, Divo, and Kassab (2017)](https://www.emerald.com/insight/content/doi/10.1108/HFF-03-2016-0083/full/html)
 3. [Real-Time Thermomechanical Modeling of PV Cell Fabrication via a POD-Trained RBF Interpolation Network - Das, Khoury, Divo, Huayamave, Ceballos, Eaglin, Kassab, Payne, Yelundur, and Seigneur (2020)](https://www.techscience.com/CMES/v122n3/38374)
 
