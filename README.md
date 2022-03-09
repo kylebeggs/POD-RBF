@@ -37,6 +37,8 @@ The other example will be demonstrated step-by-step here. We seek to build a ROM
 lid-driven cavity problem. For the impatient, here is the full code to run this example. I will
 break down each line in the sections below.
 
+If you wish to build a ROM with multiple parameters, see this basic [2-parameter example](https://github.com/kylebeggs/POD-RBF/tree/master/examples/2-parameters.ipynb).
+
 ```python
 import pod_rbf
 
