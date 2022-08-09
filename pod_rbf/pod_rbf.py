@@ -7,7 +7,7 @@ Original Author: Kyle Beggs
 import os
 import numpy as np
 from tqdm import tqdm
-from numba import jit, njit, prange
+import pickle
 
 
 class pod_rbf:
@@ -311,3 +311,39 @@ def buildSnapshotMatrix(mypath_pattern,
         i += 1
 
     return snapshot
+
+
+def save_model(filename, model):
+    """Save the model. Uses Pythons pickle module.
+
+    Parameters
+    ----------
+    filename_pattern : string
+        The full path of the model to be saved.
+
+    Returns
+    -------
+    None
+    """
+    file = open(filename, 'ab')
+    pickle.dump(model, file)
+    file.close()
+    
+
+def load_model(filename):
+    """Load the model.
+
+    Parameters
+    ----------
+    filename_pattern : string
+        The full path of the file that has the model saved.
+
+    Returns
+    -------
+    object
+        The model object.
+    """
+    file = open(filename, 'rb')
+    model = pickle.load(file)
+    file.close()
+    return model
