@@ -131,3 +131,12 @@ and we can plot the results comparing the inference and target below
 and for Reynold's number of 50:
 
 ![Re-450](examples/lid-driven-cavity/results-re-50.png)
+
+
+### Saving and loading models
+You can also save the trained model, and load it via these commands
+
+```python
+>>> save_model("model_filename", model)
+>>> loaded_model = load_model("model_filename")
+```
