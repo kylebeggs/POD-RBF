@@ -5,13 +5,13 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="pod_rbf",  # Replace with your own username
-    version="1.3.0",
+    version="1.4.0",
     author="Kyle Beggs",
     author_email="beggskw@gmail.com",
     description="Tool to perform interpolation using the Proper Orthogonal Decomposition - Radial Basis Function (POD-RBF) method.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/UCF-ERAU-OH-Research-Group/POD-RBF",
+    url="https://github.com/kylebeggs/POD-RBF",
     packages=setuptools.find_packages(),
     classifiers=[
         "Programming Language :: Python :: 3",
