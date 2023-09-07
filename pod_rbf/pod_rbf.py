@@ -100,57 +100,57 @@ class pod_rbf:
             r2 += ((I - J) / self.params_range[i])**2
         return 1 / np.sqrt(r2 / (c**2) + 1)
 
-def _findOptimShapeParam(self, cond_range=[1e11, 1e12], max_steps=1e5):
-        # find lower bound of c for bisection
-        c_low = 0.011
-        found_c_low = False
-        C = self._buildCollocationMatrix(c_low)
-        cond = np.linalg.cond(C)
-        if cond <= cond_range[1]:
-            found_c_low = True
-        else:
-            raise ValueError("Shape factor cannot be less than 0. shape_factor={}".format(c_low))
-
-        # find upper bound of c for bisection
-        c_high = 1
-        found_c_high = False
-        k = 0
-        while found_c_high is False:
-            k += 1
-            C = self._buildCollocationMatrix(c_high)
+    def _findOptimShapeParam(self, cond_range=[1e11, 1e12], max_steps=1e5):
+            # find lower bound of c for bisection
+            c_low = 0.011
+            found_c_low = False
+            C = self._buildCollocationMatrix(c_low)
             cond = np.linalg.cond(C)
-            if cond < cond_range[0]:
-                c_high += 0.01
+            if cond <= cond_range[1]:
+                found_c_low = True
             else:
-                found_c_high = True
-            if k > max_steps:
-                print("WARNING: MAX STEPS")
-                break
+                raise ValueError("Shape factor cannot be less than 0. shape_factor={}".format(c_low))
 
-        # start bisection algorithm
-        if found_c_low and found_c_high:
-            found_optim_c = False
+            # find upper bound of c for bisection
+            c_high = 1
+            found_c_high = False
             k = 0
-            while found_optim_c is False:
+            while found_c_high is False:
                 k += 1
-                optim_c = (c_low + c_high) / 2.0
-                C = self._buildCollocationMatrix(optim_c)
+                C = self._buildCollocationMatrix(c_high)
                 cond = np.linalg.cond(C)
-                if cond <= cond_range[0]:
-                    c_low = optim_c
-                elif cond > cond_range[1]:
-                    c_high = optim_c
+                if cond < cond_range[0]:
+                    c_high += 0.01
                 else:
-                    found_optim_c = True
-
+                    found_c_high = True
                 if k > max_steps:
                     print("WARNING: MAX STEPS")
                     break
-        else:
-            raise ValueError("Could not find c {}".format(optim_c))
 
-                    
-        return optim_c
+            # start bisection algorithm
+            if found_c_low and found_c_high:
+                found_optim_c = False
+                k = 0
+                while found_optim_c is False:
+                    k += 1
+                    optim_c = (c_low + c_high) / 2.0
+                    C = self._buildCollocationMatrix(optim_c)
+                    cond = np.linalg.cond(C)
+                    if cond <= cond_range[0]:
+                        c_low = optim_c
+                    elif cond > cond_range[1]:
+                        c_high = optim_c
+                    else:
+                        found_optim_c = True
+
+                    if k > max_steps:
+                        print("WARNING: MAX STEPS")
+                        break
+            else:
+                raise ValueError("Could not find c {}".format(optim_c))
+
+                        
+            return optim_c
 
     def _buildRBFInferenceMatrix(self, inf_params):
         """Make the Radial Basis Function (RBF) matrix using the
