@@ -45,11 +45,12 @@ def buildSnapshotMatrix(params, num_points):
 
 if __name__ == "__main__":
 
-    import pod_rbf as p
+    import jax.numpy as jnp
+    import pod_rbf
 
     T_L = np.linspace(1, 100, num=11)
     T_L = np.expand_dims(T_L, axis=0)
-    T_L_test = np.array([55])
+    T_L_test = 55.0
     num_points = 41
 
     # make snapshot matrix
@@ -76,13 +77,16 @@ if __name__ == "__main__":
     for n in range(0, num_terms):
         T_test = T_test + C[n] * np.cosh(lambs[n] * X) * np.cos(lambs[n] * Y)
 
-    # inference the trained RBF network
-    model = p.pod_rbf(energy_threshold=0.5)
-    model.train(snapshot, T_L)
-    sol = model.inference(T_L_test)
+    # train the POD-RBF model
+    config = pod_rbf.TrainConfig(energy_threshold=0.5)
+    result = pod_rbf.train(snapshot, T_L, config)
+    state = result.state
 
-    print("Energy kept after truncating = {}%".format(model.truncated_energy))
-    print("Cumulative Energy = {}%".format(model.cumul_energy))
+    # inference the trained model
+    sol = pod_rbf.inference_single(state, jnp.array(T_L_test))
+
+    print("Energy kept after truncating = {}%".format(state.truncated_energy))
+    print("Cumulative Energy = {}%".format(state.cumul_energy))
 
     fig = plt.figure(figsize=(12, 9))
     c = plt.pcolormesh(T_test, cmap="magma")
