@@ -45,8 +45,11 @@ def buildSnapshotMatrix(params, num_points):
 
 if __name__ == "__main__":
 
+    import jax
     import jax.numpy as jnp
     import pod_rbf
+
+    jax.config.update('jax_default_device', jax.devices('cpu')[0])  # Change to 'gpu' or 'tpu' for accelerators
 
     T_L = np.linspace(1, 100, num=11)
     T_L = np.expand_dims(T_L, axis=0)
