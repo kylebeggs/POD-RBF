@@ -129,7 +129,7 @@ def run_optimization():
         if (i + 1) % 5 == 0:
             print(
                 f"  Iter {i+1:3d}: T_L = {T_L:.2f} K, "
-                f"avg_temp = {avg_temp:.2f} K, loss = {obj_val:.4f}"
+                f"avg_temp = {avg_temp:.2f} K, loss = {obj_val:.4e}"
             )
 
     T_L_opt = float(T_L)
