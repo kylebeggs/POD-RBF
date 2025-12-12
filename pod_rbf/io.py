@@ -101,6 +101,8 @@ def save_model(filename: str, state: ModelState) -> None:
         "params_range": np.asarray(state.params_range),
         "truncated_energy": float(state.truncated_energy),
         "cumul_energy": np.asarray(state.cumul_energy),
+        "poly_coeffs": np.asarray(state.poly_coeffs) if state.poly_coeffs is not None else None,
+        "poly_degree": int(state.poly_degree),
     }
     with open(filename, "wb") as f:
         pickle.dump(state_dict, f)
@@ -123,6 +125,12 @@ def load_model(filename: str) -> ModelState:
     with open(filename, "rb") as f:
         state_dict = pickle.load(f)
 
+    # Handle backward compatibility for models saved without poly fields
+    poly_coeffs = state_dict.get("poly_coeffs")
+    if poly_coeffs is not None:
+        poly_coeffs = jnp.array(poly_coeffs)
+    poly_degree = state_dict.get("poly_degree", 0)
+
     return ModelState(
         basis=jnp.array(state_dict["basis"]),
         weights=jnp.array(state_dict["weights"]),
@@ -131,4 +139,6 @@ def load_model(filename: str) -> ModelState:
         params_range=jnp.array(state_dict["params_range"]),
         truncated_energy=state_dict["truncated_energy"],
         cumul_energy=jnp.array(state_dict["cumul_energy"]),
+        poly_coeffs=poly_coeffs,
+        poly_degree=poly_degree,
     )

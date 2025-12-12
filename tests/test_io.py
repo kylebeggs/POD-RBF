@@ -25,6 +25,8 @@ class TestSaveLoadModel:
             params_range=jnp.array([2.0]),
             truncated_energy=0.99,
             cumul_energy=jnp.array([0.9, 0.99]),
+            poly_coeffs=jnp.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]),
+            poly_degree=2,
         )
 
     def test_save_load_roundtrip(self, sample_state):
@@ -43,6 +45,8 @@ class TestSaveLoadModel:
             assert jnp.allclose(loaded.params_range, sample_state.params_range)
             assert loaded.truncated_energy == sample_state.truncated_energy
             assert jnp.allclose(loaded.cumul_energy, sample_state.cumul_energy)
+            assert jnp.allclose(loaded.poly_coeffs, sample_state.poly_coeffs)
+            assert loaded.poly_degree == sample_state.poly_degree
         finally:
             os.unlink(filename)
 

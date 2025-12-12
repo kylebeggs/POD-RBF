@@ -199,6 +199,111 @@ class TestGradients:
         assert not jnp.isnan(grad)
 
 
+class TestSchurComplement:
+    """Test Schur complement solver integration."""
+
+    @pytest.fixture
+    def linear_data(self):
+        """Create simple linear test data: f(x, p) = p * x."""
+        x = jnp.linspace(0, 1, 50)
+        params = jnp.linspace(1, 10, 10)
+        snapshot = x[:, None] * params[None, :]
+        return snapshot, params, x
+
+    def test_model_state_has_poly_fields(self, linear_data):
+        """Model state should have polynomial coefficient fields."""
+        snapshot, params, _ = linear_data
+        result = train(snapshot, params)
+        state = result.state
+
+        assert hasattr(state, "poly_coeffs"), "ModelState should have poly_coeffs field"
+        assert hasattr(state, "poly_degree"), "ModelState should have poly_degree field"
+        assert state.poly_degree == 2, "Default poly_degree should be 2"
+        assert state.poly_coeffs is not None, "poly_coeffs should not be None with default config"
+
+    def test_poly_coeffs_shape(self, linear_data):
+        """Polynomial coefficients should have correct shape."""
+        snapshot, params, _ = linear_data
+        result = train(snapshot, params)
+        state = result.state
+
+        n_modes = result.n_modes
+        # For 1D params with degree 2: 3 polynomial terms [1, p, p²]
+        n_poly = 3
+        assert state.poly_coeffs.shape == (n_modes, n_poly), f"Expected ({n_modes}, {n_poly}), got {state.poly_coeffs.shape}"
+
+    def test_poly_degree_0_fallback(self, linear_data):
+        """poly_degree=0 should use pinv fallback."""
+        snapshot, params, _ = linear_data
+        config = TrainConfig(poly_degree=0)
+        result = train(snapshot, params, config=config)
+        state = result.state
+
+        assert state.poly_degree == 0
+        assert state.poly_coeffs is None, "poly_coeffs should be None when poly_degree=0"
+
+    def test_interpolation_with_schur(self, linear_data):
+        """Schur complement solver should interpolate training points accurately."""
+        snapshot, params, x = linear_data
+        result = train(snapshot, params)
+        state = result.state
+
+        for i, p in enumerate(params):
+            pred = inference_single(state, p)
+            expected = snapshot[:, i]
+            assert jnp.allclose(pred, expected, rtol=1e-3), f"Mismatch at training point {i}"
+
+    def test_interpolation_between_points_schur(self, linear_data):
+        """Schur solver should interpolate accurately between training points."""
+        snapshot, params, x = linear_data
+        result = train(snapshot, params)
+        state = result.state
+
+        pred = inference_single(state, jnp.array(5.5))
+        expected = 5.5 * x
+
+        assert jnp.allclose(pred, expected, rtol=1e-2), "Interpolation at midpoint should be accurate"
+
+    def test_grad_with_schur(self, linear_data):
+        """Autodiff should work through Schur complement solver."""
+        snapshot, params, _ = linear_data
+        result = train(snapshot, params)
+        state = result.state
+
+        def loss(p):
+            pred = inference_single(state, p)
+            return jnp.sum(pred**2)
+
+        grad_fn = jax.grad(loss)
+        grad = grad_fn(jnp.array(5.0))
+
+        assert not jnp.isnan(grad), "Gradient should not be NaN"
+        assert grad != 0.0, "Gradient should be non-zero"
+
+    def test_multi_param_with_schur(self):
+        """Schur solver should work with multiple parameters."""
+        x = jnp.linspace(0, 1, 30)
+        # Use uncorrelated parameters to avoid rank-deficient polynomial basis
+        p1 = jnp.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        p2 = jnp.array([0.5, 0.1, 0.4, 0.2, 0.3])
+        params = jnp.stack([p1, p2], axis=0)
+
+        snapshot = x[:, None] * p1[None, :] + p2[None, :]
+
+        result = train(snapshot, params)
+        state = result.state
+
+        # For 2D params with degree 2: 6 polynomial terms
+        n_poly = 6
+        assert state.poly_coeffs.shape[1] == n_poly, f"Expected {n_poly} poly terms, got {state.poly_coeffs.shape[1]}"
+
+        # Test interpolation at training points
+        for i in range(len(p1)):
+            pred = inference_single(state, jnp.array([p1[i], p2[i]]))
+            expected = snapshot[:, i]
+            assert jnp.allclose(pred, expected, rtol=1e-3), f"Mismatch at training point {i}"
+
+
 class TestJIT:
     """Test JIT compilation."""
 
@@ -212,25 +317,31 @@ class TestJIT:
         return result.state
 
     def test_inference_single_jit(self, trained_model):
-        """inference_single should JIT compile."""
+        """inference_single should JIT compile via closure pattern."""
         state = trained_model
 
-        jitted = jax.jit(inference_single, static_argnums=())
+        # Create a closure that captures state (recommended pattern for JAX)
+        @jax.jit
+        def jitted_inference(p):
+            return inference_single(state, p)
 
         # First call compiles
-        pred1 = jitted(state, jnp.array(5.0))
+        pred1 = jitted_inference(jnp.array(5.0))
         # Second call uses cached compilation
-        pred2 = jitted(state, jnp.array(6.0))
+        pred2 = jitted_inference(jnp.array(6.0))
 
         assert pred1.shape == (50,)
         assert pred2.shape == (50,)
 
     def test_inference_batch_jit(self, trained_model):
-        """inference should JIT compile."""
+        """inference should JIT compile via closure pattern."""
         state = trained_model
 
-        jitted = jax.jit(inference)
-        pred = jitted(state, jnp.array([[2.0, 5.0, 8.0]]))
+        @jax.jit
+        def jitted_inference(params):
+            return inference(state, params)
+
+        pred = jitted_inference(jnp.array([[2.0, 5.0, 8.0]]))
 
         assert pred.shape == (50, 3)
 

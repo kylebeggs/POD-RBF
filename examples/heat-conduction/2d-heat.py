@@ -81,7 +81,7 @@ if __name__ == "__main__":
         T_test = T_test + C[n] * np.cosh(lambs[n] * X) * np.cos(lambs[n] * Y)
 
     # train the POD-RBF model
-    config = pod_rbf.TrainConfig(energy_threshold=0.5)
+    config = pod_rbf.TrainConfig(energy_threshold=0.5, poly_degree=2)
     result = pod_rbf.train(snapshot, T_L, config)
     state = result.state
 

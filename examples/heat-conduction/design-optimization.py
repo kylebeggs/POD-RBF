@@ -69,8 +69,8 @@ def run_optimization():
     snapshot = build_snapshot_matrix(T_L_train, x)
 
     # Train ROM
-    config = pod_rbf.TrainConfig(energy_threshold=0.9999)
-    result = pod_rbf.train(snapshot, T_L_train)
+    config = pod_rbf.TrainConfig(energy_threshold=0.9999, poly_degree=2)
+    result = pod_rbf.train(snapshot, T_L_train, config)
     state = result.state
 
     print(f"Trained with {result.n_modes} modes, energy retained: {state.truncated_energy:.6f}")
