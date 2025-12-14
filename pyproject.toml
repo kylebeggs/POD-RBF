@@ -33,3 +33,11 @@ Homepage = "https://github.com/kylebeggs/POD-RBF"
 Repository = "https://github.com/kylebeggs/POD-RBF"
 
 [tool.setuptools_scm]
+
+[tool.uv.sources]
+pod-rbf = { workspace = true }
+
+[dependency-groups]
+dev = [
+    "pod-rbf",
+]
