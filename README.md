@@ -1,5 +1,9 @@
 # POD-RBF
 
+[![Tests](https://github.com/kylebeggs/POD-RBF/actions/workflows/tests.yml/badge.svg)](https://github.com/kylebeggs/POD-RBF/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/kylebeggs/POD-RBF/branch/master/graph/badge.svg)](https://codecov.io/gh/kylebeggs/POD-RBF)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
 ![Re-450](examples/lid-driven-cavity/results-re-450.png)
 
 A Python package for building a Reduced Order Model (ROM) from high-dimensional data using a Proper
@@ -16,15 +20,16 @@ This code is based on the following papers implementing the method:
 
 Features:
 
-* Shape parameter optimization for the Radial basis Functions (RBFs)
+* **JAX-based** - enables autodifferentiation for gradient optimization, sensitivity analysis, and inverse problems
+* Shape parameter optimization for the Radial Basis Functions (RBFs)
 * Algorithm switching based on memory requirements (eigenvalue decomposition vs. SVD)
 
 ## Installation
 
-Simply install using pip as
-
 ```bash
-pip install pod_rbf
+pip install pod-rbf
+# or
+uv add pod-rbf
 ```
 
 ## Example
@@ -41,16 +46,20 @@ If you wish to build a ROM with multiple parameters, see this basic [2-parameter
 
 ```python
 import pod_rbf
+import jax.numpy as jnp
+import numpy as np
 
 Re = np.linspace(0, 1000, num=11)
 Re[0] = 1
 
 # make snapshot matrix from csv files
-train_snapshot = pod_rbf.buildSnapshotMatrix("examples/lid-driven-cavity/data/train/re-%.csv")
+train_snapshot = pod_rbf.build_snapshot_matrix("examples/lid-driven-cavity/data/train/")
 
-model = pod_rbf.pod_rbf(energy_threshold=0.99)  # create model object
-model.train(train_snapshot, Re)  # train the model
-sol = model.inference(450)  # inference the model on an unseen parameter
+# train the model (keeps 99% energy in POD modes by default)
+result = pod_rbf.train(train_snapshot, Re)
+
+# inference on an unseen parameter
+sol = pod_rbf.inference_single(result.state, jnp.array(450.0))
 ```
 
 ### Building the snapshot matrix
@@ -80,7 +89,7 @@ command as
 
 ```python
 >>> import pod_rbf
->>> train_snapshot = pod_rbf.buildSnapshotMatrix("examples/lid-driven-cavity/data/train/re-%.csv")
+>>> train_snapshot = pod_rbf.build_snapshot_matrix("examples/lid-driven-cavity/data/train/")
 ```
 
 ---
@@ -107,21 +116,23 @@ the input parameter array goes from  1 -> 1000.
 
 ---
 
-where ```Re``` is an array of input parameters that we are training the model on. Next, we create
-the model object and in only one method call, we can train our network. We choose to keep 99% of the
-energy in POD modes here, and that is the only input to the object creation. (99% is also the
-default, so you don't have to set that)
+where ```Re``` is an array of input parameters that we are training the model on. Next, we train
+the model with a single function call. We choose to keep 99% of the energy in POD modes (this is
+the default, so you don't have to set that).
 
 ```python
->>> model = pod_rbf.pod_rbf(energy_threshold=0.99)
->>> model.train(train_snapshot, Re)
+>>> result = pod_rbf.train(train_snapshot, Re)
+>>> # Or with custom config:
+>>> config = pod_rbf.TrainConfig(energy_threshold=0.99)
+>>> result = pod_rbf.train(train_snapshot, Re, config)
 ```
 
-Now that the weights and truncated POD basis have been calculated are stored, we can inference on
-the model using any input parameter.
+Now that the weights and truncated POD basis have been calculated and stored in `result.state`, we
+can inference on the model using any input parameter.
 
 ```python
->>> sol = model.inference(450)
+>>> import jax.numpy as jnp
+>>> sol = pod_rbf.inference_single(result.state, jnp.array(450.0))
 ```
 
 and we can plot the results comparing the inference and target below
@@ -134,9 +145,20 @@ and for Reynold's number of 50:
 
 
 ### Saving and loading models
-You can also save the trained model, and load it via these commands
+You can save and load the trained model state:
 
 ```python
->>> save_model("model_filename", model)
->>> loaded_model = load_model("model_filename")
+>>> pod_rbf.save_model("model.pkl", result.state)
+>>> state = pod_rbf.load_model("model.pkl")
+>>> sol = pod_rbf.inference_single(state, jnp.array(450.0))
+```
+
+### Autodifferentiation
+
+Since POD-RBF is built on JAX, you can compute gradients for optimization and inverse problems:
+
+```python
+>>> import jax
+>>> grad_fn = jax.grad(lambda p: jnp.sum(pod_rbf.inference_single(result.state, p)**2))
+>>> gradient = grad_fn(jnp.array(450.0))
 ```
