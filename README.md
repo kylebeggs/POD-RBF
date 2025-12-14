@@ -1,5 +1,9 @@
 # POD-RBF
 
+[![Tests](https://github.com/kylebeggs/POD-RBF/actions/workflows/tests.yml/badge.svg)](https://github.com/kylebeggs/POD-RBF/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/kylebeggs/POD-RBF/branch/master/graph/badge.svg)](https://codecov.io/gh/kylebeggs/POD-RBF)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
 ![Re-450](examples/lid-driven-cavity/results-re-450.png)
 
 A Python package for building a Reduced Order Model (ROM) from high-dimensional data using a Proper
