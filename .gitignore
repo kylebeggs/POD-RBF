@@ -98,6 +98,11 @@ ipython_config.py
 #   install all needed dependencies.
 #Pipfile.lock
 
+# uv
+#   For libraries, uv.lock should not be committed as it locks dependencies for development only.
+#   Library users will resolve dependencies based on pyproject.toml.
+uv.lock
+
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow
 __pypackages__/
 
