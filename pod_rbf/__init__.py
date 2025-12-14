@@ -32,7 +32,12 @@ from .core import inference, inference_single, train
 from .io import build_snapshot_matrix, load_model, save_model
 from .types import ModelState, TrainConfig, TrainResult
 
-__version__ = "2.0.0"
+try:
+    from importlib.metadata import version
+
+    __version__ = version("pod_rbf")
+except Exception:
+    __version__ = "unknown"
 
 __all__ = [
     # Core functions
