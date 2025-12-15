@@ -287,3 +287,158 @@ class TestSolveAugmentedSystemSchur:
         # Poly coeffs should be [2, 3]
         assert jnp.allclose(poly_coeffs[0, 0], 2.0, rtol=1e-5), f"Constant coeff: {poly_coeffs[0, 0]}"
         assert jnp.allclose(poly_coeffs[0, 1], 3.0, rtol=1e-5), f"Linear coeff: {poly_coeffs[0, 1]}"
+
+
+class TestCollocationMatrixKernels:
+    """Test collocation matrix with different kernel types."""
+
+    def test_imq_kernel(self):
+        """Test collocation matrix with IMQ kernel."""
+        params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+        params_range = jnp.array([4.0])
+        C = build_collocation_matrix(
+            params, params_range, kernel="imq", shape_factor=1.0, kernel_order=3
+        )
+
+        assert C.shape == (5, 5)
+        assert jnp.allclose(C, C.T)
+        assert jnp.allclose(jnp.diag(C), 1.0)
+        assert jnp.all(C > 0) and jnp.all(C <= 1.0)
+
+    def test_gaussian_kernel(self):
+        """Test collocation matrix with Gaussian kernel."""
+        params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+        params_range = jnp.array([4.0])
+        C = build_collocation_matrix(
+            params, params_range, kernel="gaussian", shape_factor=1.0, kernel_order=3
+        )
+
+        assert C.shape == (5, 5)
+        assert jnp.allclose(C, C.T)
+        assert jnp.allclose(jnp.diag(C), 1.0)
+        assert jnp.all(C > 0) and jnp.all(C <= 1.0)
+
+    def test_phs_kernel(self):
+        """Test collocation matrix with polyharmonic spline kernel."""
+        params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+        params_range = jnp.array([4.0])
+        C = build_collocation_matrix(
+            params,
+            params_range,
+            kernel="polyharmonic_spline",
+            shape_factor=None,
+            kernel_order=3,
+        )
+
+        assert C.shape == (5, 5)
+        assert jnp.allclose(C, C.T)
+        assert jnp.allclose(jnp.diag(C), 0.0)  # PHS is 0 at r=0
+
+    def test_kernels_produce_different_matrices(self):
+        """Different kernels should produce different matrices."""
+        params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+        params_range = jnp.array([4.0])
+
+        C_imq = build_collocation_matrix(
+            params, params_range, kernel="imq", shape_factor=1.0
+        )
+        C_gauss = build_collocation_matrix(
+            params, params_range, kernel="gaussian", shape_factor=1.0
+        )
+        C_phs = build_collocation_matrix(
+            params, params_range, kernel="polyharmonic_spline", kernel_order=3
+        )
+
+        # Matrices should be different
+        assert not jnp.allclose(C_imq, C_gauss)
+        assert not jnp.allclose(C_imq, C_phs)
+        assert not jnp.allclose(C_gauss, C_phs)
+
+
+class TestInferenceMatrixKernels:
+    """Test inference matrix with different kernel types."""
+
+    def test_imq_kernel(self):
+        """Test inference matrix with IMQ kernel."""
+        train_params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+        inf_params = jnp.array([[2.5, 3.5]])
+        params_range = jnp.array([4.0])
+
+        F = build_inference_matrix(
+            train_params,
+            inf_params,
+            params_range,
+            kernel="imq",
+            shape_factor=1.0,
+            kernel_order=3,
+        )
+
+        assert F.shape == (2, 5)
+        assert jnp.all(F > 0)
+
+    def test_gaussian_kernel(self):
+        """Test inference matrix with Gaussian kernel."""
+        train_params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+        inf_params = jnp.array([[2.5, 3.5]])
+        params_range = jnp.array([4.0])
+
+        F = build_inference_matrix(
+            train_params,
+            inf_params,
+            params_range,
+            kernel="gaussian",
+            shape_factor=1.0,
+            kernel_order=3,
+        )
+
+        assert F.shape == (2, 5)
+        assert jnp.all(F > 0)
+
+    def test_phs_kernel(self):
+        """Test inference matrix with polyharmonic spline kernel."""
+        train_params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
+        inf_params = jnp.array([[2.5, 3.5]])
+        params_range = jnp.array([4.0])
+
+        F = build_inference_matrix(
+            train_params,
+            inf_params,
+            params_range,
+            kernel="polyharmonic_spline",
+            shape_factor=None,
+            kernel_order=3,
+        )
+
+        assert F.shape == (2, 5)
+
+    def test_at_training_point_all_kernels(self):
+        """All kernels should have value 1 (IMQ/Gauss) or 0 (PHS) at r=0."""
+        train_params = jnp.array([[1.0, 2.0, 3.0]])
+        inf_params = jnp.array([[2.0]])  # Exactly at training point
+        params_range = jnp.array([2.0])
+
+        # IMQ
+        F_imq = build_inference_matrix(
+            train_params, inf_params, params_range, kernel="imq", shape_factor=1.0
+        )
+        assert jnp.isclose(F_imq[0, 1], 1.0)
+
+        # Gaussian
+        F_gauss = build_inference_matrix(
+            train_params,
+            inf_params,
+            params_range,
+            kernel="gaussian",
+            shape_factor=1.0,
+        )
+        assert jnp.isclose(F_gauss[0, 1], 1.0)
+
+        # PHS
+        F_phs = build_inference_matrix(
+            train_params,
+            inf_params,
+            params_range,
+            kernel="polyharmonic_spline",
+            kernel_order=3,
+        )
+        assert jnp.isclose(F_phs[0, 1], 0.0)

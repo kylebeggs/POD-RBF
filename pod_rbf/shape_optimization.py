@@ -9,19 +9,22 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
+from .kernels import KERNEL_SHAPE_DEFAULTS
 from .rbf import build_collocation_matrix
 
 
 def find_optimal_shape_param(
     train_params: Array,
     params_range: Array,
+    kernel: str = "imq",
+    kernel_order: int = 3,
     cond_range: tuple[float, float] = (1e11, 1e12),
     max_iters: int = 50,
-    c_low_init: float = 0.011,
-    c_high_init: float = 1.0,
-    c_high_step: float = 0.01,
+    c_low_init: float | None = None,
+    c_high_init: float | None = None,
+    c_high_step: float | None = None,
     c_high_search_iters: int = 200,
-) -> float:
+) -> float | None:
     """
     Find optimal RBF shape parameter via fixed-iteration bisection.
 
@@ -33,30 +36,52 @@ def find_optimal_shape_param(
         Training parameters, shape (n_params, n_train_points).
     params_range : Array
         Range of each parameter for normalization, shape (n_params,).
+    kernel : str, optional
+        Kernel type: 'imq', 'gaussian', or 'polyharmonic_spline'.
+        Default is 'imq'.
+    kernel_order : int, optional
+        Order for polyharmonic splines (default 3).
+        Ignored for other kernels.
     cond_range : tuple
         Target condition number range (lower, upper).
     max_iters : int
         Maximum bisection iterations.
-    c_low_init : float
+    c_low_init : float | None, optional
         Initial lower bound for shape parameter.
-    c_high_init : float
+        If None, uses kernel-specific default.
+    c_high_init : float | None, optional
         Initial upper bound for shape parameter.
-    c_high_step : float
+        If None, uses kernel-specific default.
+    c_high_step : float | None, optional
         Step size for expanding upper bound search.
+        If None, uses kernel-specific default.
     c_high_search_iters : int
         Maximum iterations for upper bound search.
 
     Returns
     -------
-    float
+    float | None
         Optimal shape parameter.
+        Returns None for kernels that don't use shape parameters (e.g., PHS).
     """
+    # PHS doesn't use shape parameters
+    if kernel == "polyharmonic_spline":
+        return None
+
+    # Use kernel-specific defaults if not provided
+    defaults = KERNEL_SHAPE_DEFAULTS.get(kernel, KERNEL_SHAPE_DEFAULTS["imq"])
+    c_low_init = c_low_init or defaults["c_low"]
+    c_high_init = c_high_init or defaults["c_high"]
+    c_high_step = c_high_step or defaults["c_step"]
+
     cond_low, cond_high = cond_range
 
     # Step 1: Find upper bound where cond >= cond_low
     def search_c_high_iter(i: int, carry: tuple) -> tuple:
         c_high, found = carry
-        C = build_collocation_matrix(train_params, params_range, c_high)
+        C = build_collocation_matrix(
+            train_params, params_range, kernel, c_high, kernel_order
+        )
         cond = jnp.linalg.cond(C)
         should_continue = (~found) & (cond < cond_low)
         new_c_high = jnp.where(should_continue, c_high + c_high_step, c_high)
@@ -72,7 +97,9 @@ def find_optimal_shape_param(
         c_low_bound, c_high_bound, optim_c, found = carry
 
         mid_c = (c_low_bound + c_high_bound) / 2.0
-        C = build_collocation_matrix(train_params, params_range, mid_c)
+        C = build_collocation_matrix(
+            train_params, params_range, kernel, mid_c, kernel_order
+        )
         cond = jnp.linalg.cond(C)
 
         # Check if condition number is in target range

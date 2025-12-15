@@ -362,3 +362,196 @@ class TestJIT:
 
         assert not jnp.isnan(loss)
         assert not jnp.isnan(grad)
+
+
+class TestKernelTypes:
+    """Test training and inference with different kernel types."""
+
+    @pytest.fixture
+    def linear_data(self):
+        """Create simple linear test data: f(x, p) = p * x."""
+        x = jnp.linspace(0, 1, 50)
+        params = jnp.linspace(1, 10, 10)
+        snapshot = x[:, None] * params[None, :]
+        return snapshot, params, x
+
+    def test_train_with_gaussian_kernel(self, linear_data):
+        """Train with Gaussian kernel."""
+        snapshot, params, _ = linear_data
+        config = TrainConfig(kernel="gaussian")
+        result = train(snapshot, params, config=config)
+
+        assert result.state.kernel == "gaussian"
+        assert result.state.shape_factor is not None
+        assert result.n_modes > 0
+
+    def test_train_with_phs_kernel(self, linear_data):
+        """Train with polyharmonic spline kernel."""
+        snapshot, params, _ = linear_data
+        config = TrainConfig(kernel="polyharmonic_spline", kernel_order=3)
+        result = train(snapshot, params, config=config)
+
+        assert result.state.kernel == "polyharmonic_spline"
+        assert result.state.kernel_order == 3
+        assert result.state.shape_factor is None  # PHS doesn't use shape parameter
+        assert result.n_modes > 0
+
+    def test_train_with_imq_kernel_explicit(self, linear_data):
+        """Train with IMQ kernel explicitly specified."""
+        snapshot, params, _ = linear_data
+        config = TrainConfig(kernel="imq")
+        result = train(snapshot, params, config=config)
+
+        assert result.state.kernel == "imq"
+        assert result.state.shape_factor is not None
+        assert result.n_modes > 0
+
+    def test_inference_with_gaussian_kernel(self, linear_data):
+        """Inference should work with Gaussian kernel."""
+        snapshot, params, x = linear_data
+        config = TrainConfig(kernel="gaussian")
+        result = train(snapshot, params, config=config)
+
+        # Test inference at training points
+        pred = inference_single(result.state, params[5])
+        expected = snapshot[:, 5]
+        assert jnp.allclose(pred, expected, rtol=1e-3)
+
+    def test_inference_with_phs_kernel(self, linear_data):
+        """Inference should work with PHS kernel."""
+        snapshot, params, x = linear_data
+        config = TrainConfig(kernel="polyharmonic_spline", kernel_order=3)
+        result = train(snapshot, params, config=config)
+
+        # Test inference at training points
+        pred = inference_single(result.state, params[5])
+        expected = snapshot[:, 5]
+        assert jnp.allclose(pred, expected, rtol=1e-3)
+
+    def test_all_kernels_interpolate_training_data(self, linear_data):
+        """All kernels should interpolate training data accurately."""
+        snapshot, params, x = linear_data
+
+        kernels = [
+            ("imq", {}),
+            ("gaussian", {}),
+            ("polyharmonic_spline", {"kernel_order": 3}),
+        ]
+
+        for kernel, kwargs in kernels:
+            config = TrainConfig(kernel=kernel, **kwargs)
+            result = train(snapshot, params, config=config)
+
+            # Check interpolation at a few training points
+            for i in [0, 5, 9]:
+                pred = inference_single(result.state, params[i])
+                expected = snapshot[:, i]
+                assert jnp.allclose(
+                    pred, expected, rtol=1e-3
+                ), f"Kernel {kernel} failed to interpolate training point {i}"
+
+    def test_phs_different_orders(self, linear_data):
+        """Test PHS with different orders."""
+        snapshot, params, x = linear_data
+
+        for order in [1, 3, 5]:
+            config = TrainConfig(kernel="polyharmonic_spline", kernel_order=order)
+            result = train(snapshot, params, config=config)
+
+            assert result.state.kernel_order == order
+            assert result.state.shape_factor is None
+
+            # Should still interpolate training data
+            pred = inference_single(result.state, params[5])
+            expected = snapshot[:, 5]
+            assert jnp.allclose(pred, expected, rtol=1e-3), f"PHS order {order} failed"
+
+
+class TestKernelGradients:
+    """Test autodiff with different kernels."""
+
+    @pytest.fixture
+    def linear_data(self):
+        """Create simple linear test data."""
+        x = jnp.linspace(0, 1, 50)
+        params = jnp.linspace(1, 10, 10)
+        snapshot = x[:, None] * params[None, :]
+        return snapshot, params, x
+
+    def test_grad_with_gaussian_kernel(self, linear_data):
+        """Gradients should work with Gaussian kernel."""
+        snapshot, params, x = linear_data
+        config = TrainConfig(kernel="gaussian")
+        result = train(snapshot, params, config=config)
+
+        def loss(p):
+            pred = inference_single(result.state, p)
+            return jnp.sum(pred**2)
+
+        grad = jax.grad(loss)(jnp.array(5.0))
+        assert not jnp.isnan(grad)
+        assert grad != 0.0
+
+    def test_grad_with_phs_kernel(self, linear_data):
+        """Gradients should work with PHS kernel."""
+        snapshot, params, x = linear_data
+        config = TrainConfig(kernel="polyharmonic_spline", kernel_order=3)
+        result = train(snapshot, params, config=config)
+
+        def loss(p):
+            pred = inference_single(result.state, p)
+            return jnp.sum(pred**2)
+
+        grad = jax.grad(loss)(jnp.array(5.0))
+        assert not jnp.isnan(grad)
+        assert grad != 0.0
+
+    def test_inverse_problem_all_kernels(self, linear_data):
+        """Inverse problem should work with all kernels."""
+        snapshot, params, x = linear_data
+        target_param = 7.5
+        target = target_param * x
+
+        kernels = [
+            ("imq", {}),
+            ("gaussian", {}),
+            ("polyharmonic_spline", {"kernel_order": 3}),
+        ]
+
+        for kernel, kwargs in kernels:
+            config = TrainConfig(kernel=kernel, **kwargs)
+            result = train(snapshot, params, config=config)
+
+            def loss(p):
+                pred = inference_single(result.state, p)
+                return jnp.mean((pred - target) ** 2)
+
+            # Gradient descent
+            p = jnp.array(5.0)
+            lr = 0.5
+
+            for _ in range(50):
+                g = jax.grad(loss)(p)
+                p = p - lr * g
+
+            assert jnp.abs(p - target_param) < 0.2, f"Kernel {kernel}: recovered {p}, expected {target_param}"
+
+
+class TestBackwardsCompatibility:
+    """Test backwards compatibility with default IMQ kernel."""
+
+    def test_default_kernel_is_imq(self):
+        """Default config should use IMQ kernel."""
+        config = TrainConfig()
+        assert config.kernel == "imq"
+        assert config.kernel_order == 3
+
+    def test_train_without_config_uses_imq(self):
+        """Training without config should use IMQ kernel."""
+        x = jnp.linspace(0, 1, 50)
+        params = jnp.linspace(1, 10, 10)
+        snapshot = x[:, None] * params[None, :]
+
+        result = train(snapshot, params)
+        assert result.state.kernel == "imq"
+        assert result.state.shape_factor is not None

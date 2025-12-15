@@ -71,6 +71,8 @@ def train(
         shape_factor = find_optimal_shape_param(
             train_params,
             params_range,
+            kernel=config.kernel,
+            kernel_order=config.kernel_order,
             cond_range=config.cond_range,
             max_iters=config.max_bisection_iters,
             c_low_init=config.c_low_init,
@@ -85,7 +87,13 @@ def train(
     )
 
     # Build collocation matrix
-    F = build_collocation_matrix(train_params, params_range, shape_factor)
+    F = build_collocation_matrix(
+        train_params,
+        params_range,
+        kernel=config.kernel,
+        shape_factor=shape_factor,
+        kernel_order=config.kernel_order,
+    )
     A = basis.T @ snapshot  # (n_modes, n_train)
 
     # Compute weights using Schur complement solver or fallback to pinv
@@ -100,13 +108,15 @@ def train(
     state = ModelState(
         basis=basis,
         weights=weights,
-        shape_factor=float(shape_factor),
+        shape_factor=float(shape_factor) if shape_factor is not None else None,
         train_params=train_params,
         params_range=params_range,
         truncated_energy=float(truncated_energy),
         cumul_energy=cumul_energy,
         poly_coeffs=poly_coeffs,
         poly_degree=poly_degree,
+        kernel=config.kernel,
+        kernel_order=config.kernel_order,
     )
 
     return TrainResult(
@@ -121,17 +131,21 @@ def _inference_impl(
     weights: Array,
     train_params: Array,
     params_range: Array,
-    shape_factor: float,
+    shape_factor: float | None,
     poly_coeffs: Array | None,
     poly_degree: int,
     inf_params: Array,
+    kernel: str,
+    kernel_order: int,
 ) -> Array:
     """Core inference implementation for JIT compilation."""
     F = build_inference_matrix(
         train_params,
         inf_params,
         params_range,
-        shape_factor,
+        kernel=kernel,
+        shape_factor=shape_factor,
+        kernel_order=kernel_order,
     )
 
     # RBF contribution
@@ -175,6 +189,8 @@ def inference(state: ModelState, inf_params: Array) -> Array:
         state.poly_coeffs,
         poly_degree,
         inf_params,
+        kernel=state.kernel,
+        kernel_order=state.kernel_order,
     )
 
 

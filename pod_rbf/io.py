@@ -96,13 +96,15 @@ def save_model(filename: str, state: ModelState) -> None:
     state_dict = {
         "basis": np.asarray(state.basis),
         "weights": np.asarray(state.weights),
-        "shape_factor": float(state.shape_factor),
+        "shape_factor": float(state.shape_factor) if state.shape_factor is not None else None,
         "train_params": np.asarray(state.train_params),
         "params_range": np.asarray(state.params_range),
         "truncated_energy": float(state.truncated_energy),
         "cumul_energy": np.asarray(state.cumul_energy),
         "poly_coeffs": np.asarray(state.poly_coeffs) if state.poly_coeffs is not None else None,
         "poly_degree": int(state.poly_degree),
+        "kernel": state.kernel,
+        "kernel_order": int(state.kernel_order),
     }
     with open(filename, "wb") as f:
         pickle.dump(state_dict, f)
@@ -131,6 +133,11 @@ def load_model(filename: str) -> ModelState:
         poly_coeffs = jnp.array(poly_coeffs)
     poly_degree = state_dict.get("poly_degree", 0)
 
+    # Handle backward compatibility for models saved without kernel fields
+    # Legacy models used IMQ kernel only
+    kernel = state_dict.get("kernel", "imq")
+    kernel_order = state_dict.get("kernel_order", 3)
+
     return ModelState(
         basis=jnp.array(state_dict["basis"]),
         weights=jnp.array(state_dict["weights"]),
@@ -141,4 +148,6 @@ def load_model(filename: str) -> ModelState:
         cumul_energy=jnp.array(state_dict["cumul_energy"]),
         poly_coeffs=poly_coeffs,
         poly_degree=poly_degree,
+        kernel=kernel,
+        kernel_order=kernel_order,
     )
