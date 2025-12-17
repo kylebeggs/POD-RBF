@@ -21,6 +21,8 @@ class TrainConfig(NamedTuple):
     c_high_step: float = 0.01
     c_high_search_iters: int = 200
     poly_degree: int = 2  # Polynomial augmentation degree (0=none, 1=linear, 2=quadratic)
+    kernel: str = "imq"  # RBF kernel type: 'imq', 'gaussian', 'polyharmonic_spline'
+    kernel_order: int = 3  # For polyharmonic splines only (order of r^k)
 
 
 class ModelState(NamedTuple):
@@ -28,13 +30,15 @@ class ModelState(NamedTuple):
 
     basis: Array  # Truncated POD basis (n_samples, n_modes)
     weights: Array  # RBF network weights (n_modes, n_train_points)
-    shape_factor: float  # Optimized RBF shape parameter
+    shape_factor: float | None  # Optimized RBF shape parameter (None for PHS)
     train_params: Array  # Training parameters (n_params, n_train_points)
     params_range: Array  # Parameter ranges for normalization (n_params,)
     truncated_energy: float  # Energy retained after truncation
     cumul_energy: Array  # Cumulative energy per mode
     poly_coeffs: Array | None  # Polynomial coefficients (n_modes, n_poly) or None
     poly_degree: int  # Polynomial degree used (0=none)
+    kernel: str  # Kernel type used for training
+    kernel_order: int  # PHS order (ignored for other kernels)
 
 
 class TrainResult(NamedTuple):

@@ -1,7 +1,10 @@
 """
 Radial Basis Function (RBF) kernel and matrix construction.
 
-Uses Hardy Inverse Multi-Quadrics (IMQ): phi(r) = 1 / sqrt(r^2/c^2 + 1)
+Supports multiple kernel types:
+- Inverse Multi-Quadrics (IMQ): phi(r) = 1 / sqrt(r²/c² + 1)
+- Gaussian: phi(r) = exp(-r²/c²)
+- Polyharmonic Splines (PHS): phi(r) = r^k or r^k*log(r)
 """
 
 import jax
@@ -9,11 +12,15 @@ import jax.numpy as jnp
 import jax.scipy.linalg as jla
 from jax import Array
 
+from .kernels import apply_kernel
+
 
 def build_collocation_matrix(
     train_params: Array,
     params_range: Array,
-    shape_factor: float,
+    kernel: str = "imq",
+    shape_factor: float | None = None,
+    kernel_order: int = 3,
 ) -> Array:
     """
     Build RBF collocation matrix for training.
@@ -24,8 +31,15 @@ def build_collocation_matrix(
         Training parameters, shape (n_params, n_train_points).
     params_range : Array
         Range of each parameter for normalization, shape (n_params,).
-    shape_factor : float
-        RBF shape parameter c.
+    kernel : str, optional
+        Kernel type: 'imq', 'gaussian', or 'polyharmonic_spline'.
+        Default is 'imq'.
+    shape_factor : float | None, optional
+        RBF shape parameter c. Required for IMQ and Gaussian kernels.
+        Ignored for polyharmonic splines.
+    kernel_order : int, optional
+        Order for polyharmonic splines (default 3).
+        Ignored for other kernels.
 
     Returns
     -------
@@ -41,14 +55,16 @@ def build_collocation_matrix(
 
     r2 = jax.lax.fori_loop(0, n_params, accumulate_r2, jnp.zeros((n_train, n_train)))
 
-    return 1.0 / jnp.sqrt(r2 / (shape_factor**2) + 1.0)
+    return apply_kernel(r2, kernel, shape_factor, kernel_order)
 
 
 def build_inference_matrix(
     train_params: Array,
     inf_params: Array,
     params_range: Array,
-    shape_factor: float,
+    kernel: str = "imq",
+    shape_factor: float | None = None,
+    kernel_order: int = 3,
 ) -> Array:
     """
     Build RBF inference matrix for prediction at new parameters.
@@ -61,8 +77,15 @@ def build_inference_matrix(
         Inference parameters, shape (n_params, n_inf_points).
     params_range : Array
         Range of each parameter for normalization, shape (n_params,).
-    shape_factor : float
-        RBF shape parameter c.
+    kernel : str, optional
+        Kernel type: 'imq', 'gaussian', or 'polyharmonic_spline'.
+        Default is 'imq'.
+    shape_factor : float | None, optional
+        RBF shape parameter c. Required for IMQ and Gaussian kernels.
+        Ignored for polyharmonic splines.
+    kernel_order : int, optional
+        Order for polyharmonic splines (default 3).
+        Ignored for other kernels.
 
     Returns
     -------
@@ -79,7 +102,7 @@ def build_inference_matrix(
 
     r2 = jax.lax.fori_loop(0, n_params, accumulate_r2, jnp.zeros((n_inf, n_train)))
 
-    return 1.0 / jnp.sqrt(r2 / (shape_factor**2) + 1.0)
+    return apply_kernel(r2, kernel, shape_factor, kernel_order)
 
 
 def build_polynomial_basis(
@@ -180,5 +203,61 @@ def solve_augmented_system_schur(
 
     # Back-substitute: λ = F^{-1} @ (rhs - P @ c)
     rbf_weights = (F_inv_rhs - F_inv_P @ poly_coeffs.T).T  # (n_rhs, n_train)
+
+    return rbf_weights, poly_coeffs
+
+
+def solve_augmented_system_direct(
+    F: Array,
+    P: Array,
+    rhs: Array,
+) -> tuple[Array, Array]:
+    """
+    Solve augmented RBF system by direct assembly and solve.
+
+    Solves the saddle-point system:
+        [F  P] [λ]   [rhs]
+        [P.T 0] [c] = [0]
+
+    This method assembles and solves the full system directly, which works
+    for kernels where F is not positive definite (e.g., polyharmonic splines).
+
+    Parameters
+    ----------
+    F : Array
+        RBF collocation matrix, shape (n_train, n_train).
+    P : Array
+        Polynomial basis matrix, shape (n_train, n_poly).
+    rhs : Array
+        Right-hand side, shape (n_rhs, n_train). Each row is a separate RHS.
+
+    Returns
+    -------
+    tuple[Array, Array]
+        rbf_weights : shape (n_rhs, n_train)
+        poly_coeffs : shape (n_rhs, n_poly)
+    """
+    n_train = F.shape[0]
+    n_poly = P.shape[1]
+    n_rhs = rhs.shape[0]
+
+    # Assemble full augmented system matrix
+    # [F  P ]
+    # [P' 0 ]
+    top = jnp.hstack([F, P])
+    bottom = jnp.hstack([P.T, jnp.zeros((n_poly, n_poly))])
+    A_aug = jnp.vstack([top, bottom])
+
+    # Assemble augmented RHS
+    # [rhs]
+    # [0  ]
+    rhs_aug = jnp.hstack([rhs, jnp.zeros((n_rhs, n_poly))])
+
+    # Solve the full system
+    solution = jnp.linalg.solve(A_aug, rhs_aug.T).T  # (n_rhs, n_train + n_poly)
+
+    # Extract weights and polynomial coefficients
+    rbf_weights = solution[:, :n_train]
+    poly_coeffs = solution[:, n_train:]
 
     return rbf_weights, poly_coeffs

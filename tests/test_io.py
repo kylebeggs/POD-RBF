@@ -27,6 +27,8 @@ class TestSaveLoadModel:
             cumul_energy=jnp.array([0.9, 0.99]),
             poly_coeffs=jnp.array([[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]),
             poly_degree=2,
+            kernel="imq",
+            kernel_order=3,
         )
 
     def test_save_load_roundtrip(self, sample_state):

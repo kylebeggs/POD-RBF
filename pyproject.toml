@@ -27,10 +27,15 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov"]
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.24",
+]
 
 [project.urls]
 Homepage = "https://github.com/kylebeggs/POD-RBF"
 Repository = "https://github.com/kylebeggs/POD-RBF"
+Documentation = "https://kylebeggs.github.io/POD-RBF"
 
 [tool.setuptools_scm]
 
