@@ -181,7 +181,7 @@ class TestApplyKernel:
     def test_apply_invalid_kernel(self):
         """Dispatcher should raise error for invalid kernel."""
         r2 = jnp.array([1.0])
-        with pytest.raises(ValueError, match="Unknown kernel type"):
+        with pytest.raises(ValueError, match="is not a valid KernelType"):
             apply_kernel(r2, "invalid_kernel", shape_factor=1.0, kernel_order=3)
 
 

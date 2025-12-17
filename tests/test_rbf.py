@@ -18,7 +18,7 @@ class TestBuildCollocationMatrix:
         """Collocation matrix should be symmetric."""
         params = jnp.array([[1.0, 2.0, 3.0, 4.0, 5.0]])
         params_range = jnp.array([4.0])
-        C = build_collocation_matrix(params, params_range, 1.0)
+        C = build_collocation_matrix(params, params_range, shape_factor=1.0)
 
         assert jnp.allclose(C, C.T), "Collocation matrix should be symmetric"
 
@@ -26,7 +26,7 @@ class TestBuildCollocationMatrix:
         """Diagonal should be 1 (r=0 -> phi=1)."""
         params = jnp.array([[1.0, 2.0, 3.0]])
         params_range = jnp.array([2.0])
-        C = build_collocation_matrix(params, params_range, 1.0)
+        C = build_collocation_matrix(params, params_range, shape_factor=1.0)
 
         assert jnp.allclose(jnp.diag(C), 1.0), "Diagonal elements should be 1"
 
@@ -35,7 +35,7 @@ class TestBuildCollocationMatrix:
         n_train = 7
         params = jnp.linspace(0, 10, n_train)[None, :]
         params_range = jnp.array([10.0])
-        C = build_collocation_matrix(params, params_range, 0.5)
+        C = build_collocation_matrix(params, params_range, shape_factor=0.5)
 
         assert C.shape == (n_train, n_train), f"Expected ({n_train}, {n_train}), got {C.shape}"
 
@@ -49,7 +49,7 @@ class TestBuildCollocationMatrix:
             [10.0, 20.0, 30.0, 40.0, 50.0],
         ])
         params_range = jnp.array([4.0, 0.4, 40.0])
-        C = build_collocation_matrix(params, params_range, 1.0)
+        C = build_collocation_matrix(params, params_range, shape_factor=1.0)
 
         assert C.shape == (n_train, n_train)
         assert jnp.allclose(C, C.T), "Multi-param collocation should be symmetric"
@@ -59,7 +59,7 @@ class TestBuildCollocationMatrix:
         """All values should be positive (IMQ kernel is always positive)."""
         params = jnp.array([[1.0, 5.0, 10.0, 20.0]])
         params_range = jnp.array([19.0])
-        C = build_collocation_matrix(params, params_range, 0.5)
+        C = build_collocation_matrix(params, params_range, shape_factor=0.5)
 
         assert jnp.all(C > 0), "All values should be positive"
 
@@ -67,7 +67,7 @@ class TestBuildCollocationMatrix:
         """Values should be in (0, 1] for IMQ kernel."""
         params = jnp.array([[1.0, 5.0, 10.0, 20.0]])
         params_range = jnp.array([19.0])
-        C = build_collocation_matrix(params, params_range, 0.5)
+        C = build_collocation_matrix(params, params_range, shape_factor=0.5)
 
         assert jnp.all(C > 0), "All values should be > 0"
         assert jnp.all(C <= 1.0), "All values should be <= 1"
@@ -84,7 +84,7 @@ class TestBuildInferenceMatrix:
         inf_params = jnp.array([[2.5, 5.0, 7.5]])
         params_range = jnp.array([10.0])
 
-        F = build_inference_matrix(train_params, inf_params, params_range, 1.0)
+        F = build_inference_matrix(train_params, inf_params, params_range, shape_factor=1.0)
 
         assert F.shape == (n_inf, n_train), f"Expected ({n_inf}, {n_train}), got {F.shape}"
 
@@ -94,7 +94,7 @@ class TestBuildInferenceMatrix:
         inf_params = jnp.array([[3.0]])  # Exactly at training point
         params_range = jnp.array([4.0])
 
-        F = build_inference_matrix(train_params, inf_params, params_range, 1.0)
+        F = build_inference_matrix(train_params, inf_params, params_range, shape_factor=1.0)
 
         # At training point index 2, value should be 1
         assert jnp.isclose(F[0, 2], 1.0), f"Expected 1.0 at training point, got {F[0, 2]}"
@@ -105,7 +105,7 @@ class TestBuildInferenceMatrix:
         inf_params = jnp.array([[2.0, 7.0]])
         params_range = jnp.array([9.0])
 
-        F = build_inference_matrix(train_params, inf_params, params_range, 0.5)
+        F = build_inference_matrix(train_params, inf_params, params_range, shape_factor=0.5)
 
         assert jnp.all(F > 0), "All values should be positive"
 
@@ -121,7 +121,7 @@ class TestBuildInferenceMatrix:
         ])
         params_range = jnp.array([2.0, 0.2])
 
-        F = build_inference_matrix(train_params, inf_params, params_range, 1.0)
+        F = build_inference_matrix(train_params, inf_params, params_range, shape_factor=1.0)
 
         assert F.shape == (2, 3)
         assert jnp.all(F > 0)
@@ -273,7 +273,7 @@ class TestSolveAugmentedSystemSchur:
         params = jnp.linspace(0, 1, n_points)[None, :]
         params_range = jnp.array([1.0])
 
-        F = build_collocation_matrix(params, params_range, 0.5)
+        F = build_collocation_matrix(params, params_range, shape_factor=0.5)
         P = build_polynomial_basis(params, params_range, degree=1)  # [1, p]
 
         # RHS that's a linear function: f = 2 + 3*p

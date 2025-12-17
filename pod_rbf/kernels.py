@@ -87,16 +87,21 @@ def kernel_polyharmonic_spline(r2: Array, order: int) -> Array:
     Notes
     -----
     For even orders, handles r=0 case to avoid log(0) singularity.
+    Uses r2-based formulation to avoid gradient singularity from sqrt at r2=0.
     """
-    r = jnp.sqrt(r2)
-
     if order % 2 == 1:
-        # Odd order: r^k
-        return r**order
+        # Odd order: r^k = (r2)^(k/2)
+        # Using power of r2 directly avoids sqrt gradient singularity at r2=0
+        return jnp.power(r2, order / 2.0)
     else:
-        # Even order: r^k * log(r)
-        # Handle r=0 case: set to 0 when r < threshold
-        return jnp.where(r > 1e-15, (r**order) * jnp.log(r), 0.0)
+        # Even order: r^k * log(r) = (r2)^(k/2) * log(sqrt(r2))
+        #           = (r2)^(k/2) * (1/2) * log(r2)
+        # Handle r2=0 case: set to 0 when r2 < threshold
+        return jnp.where(
+            r2 > 1e-30,
+            jnp.power(r2, order / 2.0) * 0.5 * jnp.log(r2),
+            0.0,
+        )
 
 
 def apply_kernel(

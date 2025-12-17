@@ -12,6 +12,7 @@ from .rbf import (
     build_collocation_matrix,
     build_inference_matrix,
     build_polynomial_basis,
+    solve_augmented_system_direct,
     solve_augmented_system_schur,
 )
 from .shape_optimization import find_optimal_shape_param
@@ -100,7 +101,11 @@ def train(
     poly_degree = config.poly_degree
     if poly_degree > 0:
         P = build_polynomial_basis(train_params, params_range, poly_degree)
-        weights, poly_coeffs = solve_augmented_system_schur(F, P, A)
+        # Use direct solver for PHS (F is not SPD), Schur for others (F is SPD)
+        if config.kernel == "polyharmonic_spline":
+            weights, poly_coeffs = solve_augmented_system_direct(F, P, A)
+        else:
+            weights, poly_coeffs = solve_augmented_system_schur(F, P, A)
     else:
         weights = A @ jnp.linalg.pinv(F.T)
         poly_coeffs = None

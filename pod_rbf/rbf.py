@@ -205,3 +205,59 @@ def solve_augmented_system_schur(
     rbf_weights = (F_inv_rhs - F_inv_P @ poly_coeffs.T).T  # (n_rhs, n_train)
 
     return rbf_weights, poly_coeffs
+
+
+def solve_augmented_system_direct(
+    F: Array,
+    P: Array,
+    rhs: Array,
+) -> tuple[Array, Array]:
+    """
+    Solve augmented RBF system by direct assembly and solve.
+
+    Solves the saddle-point system:
+        [F  P] [λ]   [rhs]
+        [P.T 0] [c] = [0]
+
+    This method assembles and solves the full system directly, which works
+    for kernels where F is not positive definite (e.g., polyharmonic splines).
+
+    Parameters
+    ----------
+    F : Array
+        RBF collocation matrix, shape (n_train, n_train).
+    P : Array
+        Polynomial basis matrix, shape (n_train, n_poly).
+    rhs : Array
+        Right-hand side, shape (n_rhs, n_train). Each row is a separate RHS.
+
+    Returns
+    -------
+    tuple[Array, Array]
+        rbf_weights : shape (n_rhs, n_train)
+        poly_coeffs : shape (n_rhs, n_poly)
+    """
+    n_train = F.shape[0]
+    n_poly = P.shape[1]
+    n_rhs = rhs.shape[0]
+
+    # Assemble full augmented system matrix
+    # [F  P ]
+    # [P' 0 ]
+    top = jnp.hstack([F, P])
+    bottom = jnp.hstack([P.T, jnp.zeros((n_poly, n_poly))])
+    A_aug = jnp.vstack([top, bottom])
+
+    # Assemble augmented RHS
+    # [rhs]
+    # [0  ]
+    rhs_aug = jnp.hstack([rhs, jnp.zeros((n_rhs, n_poly))])
+
+    # Solve the full system
+    solution = jnp.linalg.solve(A_aug, rhs_aug.T).T  # (n_rhs, n_train + n_poly)
+
+    # Extract weights and polynomial coefficients
+    rbf_weights = solution[:, :n_train]
+    poly_coeffs = solution[:, n_train:]
+
+    return rbf_weights, poly_coeffs
