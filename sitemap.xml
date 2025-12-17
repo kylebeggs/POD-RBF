@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/examples/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/getting-started/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/api/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/user-guide/autodiff/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/user-guide/inference/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/user-guide/io/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+    <url>
+         <loc>https://kylebeggs.github.io/POD-RBF/user-guide/training/</loc>
+         <lastmod>2025-12-17</lastmod>
+    </url>
+</urlset>
