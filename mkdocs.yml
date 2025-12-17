@@ -1,0 +1,54 @@
+site_name: POD-RBF
+site_description: JAX-based POD-RBF for autodiff-enabled reduced order modeling
+site_url: https://kylebeggs.github.io/POD-RBF
+repo_url: https://github.com/kylebeggs/POD-RBF
+repo_name: kylebeggs/POD-RBF
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_root_heading: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - User Guide:
+      - Training Models: user-guide/training.md
+      - Inference: user-guide/inference.md
+      - Autodifferentiation: user-guide/autodiff.md
+      - Saving & Loading: user-guide/io.md
+  - API Reference: api/index.md
+  - Examples: examples.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
