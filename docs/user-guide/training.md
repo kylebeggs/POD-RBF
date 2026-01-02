@@ -69,6 +69,9 @@ result = pod_rbf.train(snapshot, params, config)
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `energy_threshold` | 0.99 | POD truncation threshold (0-1) |
+| `truncation_method` | `"energy"` | Truncation method: `"energy"` or `"gavish_donoho"` |
+| `noise_sigma` | `None` | Noise level for Gavish-Donoho (None = auto-estimate) |
+| `decomposition_method` | `"auto"` | SVD algorithm: `"auto"`, `"svd"`, or `"eig"` |
 | `kernel` | `"imq"` | RBF kernel type |
 | `poly_degree` | 2 | Polynomial augmentation degree |
 | `mem_limit_gb` | 16.0 | Memory limit for algorithm selection |
@@ -117,15 +120,79 @@ result = pod_rbf.train(snapshot, params, shape_factor=0.5)
 
 ## Understanding POD Truncation
 
-POD extracts the dominant modes from your snapshot data. The `energy_threshold` controls how many modes are kept:
+POD extracts the dominant modes from your snapshot data. POD-RBF offers two truncation methods:
+
+### Energy-Based Truncation (Default)
+
+The `energy_threshold` controls how many modes are kept:
 
 - `0.99` (default) - Keep modes until 99% of total energy is captured
 - Higher values retain more modes (more accurate, slower inference)
 - Lower values retain fewer modes (faster inference, may lose accuracy)
 
-After training, check how much energy was retained:
+```python
+config = TrainConfig(
+    truncation_method="energy",  # default
+    energy_threshold=0.99,
+)
+```
+
+**Best for**: Clean simulation data (CFD, FEM, DNS) where noise is negligible.
+
+### Gavish-Donoho Optimal Truncation
+
+For noisy or experimental data, the energy-based method may retain noise modes. Gavish-Donoho uses statistical optimal hard thresholding to automatically separate signal from noise:
+
+```python
+config = TrainConfig(
+    truncation_method="gavish_donoho",
+)
+result = pod_rbf.train(snapshot, params, config)
+```
+
+The algorithm automatically estimates the noise level from your data. If you know the noise standard deviation, you can provide it for more accurate results:
+
+```python
+config = TrainConfig(
+    truncation_method="gavish_donoho",
+    noise_sigma=0.1,  # Known noise standard deviation
+)
+```
+
+**Best for**: Experimental measurements, PIV data, sensor data, or any snapshots with measurement noise.
+
+**When NOT to use**: Clean simulation data—energy-based truncation is simpler and works well when noise is negligible.
+
+### Choosing a Truncation Method
+
+| Data Source | Recommended Method | Reason |
+|-------------|-------------------|--------|
+| CFD/FEM simulations | `energy` | Data is clean, energy threshold is intuitive |
+| High-fidelity DNS | `energy` | Noise-free, energy captures physics |
+| Experimental PIV | `gavish_donoho` | Filters measurement noise |
+| Sensor measurements | `gavish_donoho` | Separates signal from sensor noise |
+| Noisy simulations | `gavish_donoho` | Handles numerical noise |
+
+### Checking Truncation Results
+
+After training, inspect how many modes were retained:
 
 ```python
 print(f"Modes retained: {result.n_modes}")
 print(f"Energy retained: {result.state.truncated_energy:.4f}")
 ```
+
+## Decomposition Method
+
+POD-RBF automatically chooses between SVD and eigendecomposition based on your data shape and memory constraints. You can override this:
+
+```python
+config = TrainConfig(
+    decomposition_method="auto",  # default: automatic selection
+    # decomposition_method="svd",  # force SVD (faster for smaller data)
+    # decomposition_method="eig",  # force eigendecomposition (memory-efficient for large data)
+)
+```
+
+- **SVD**: Faster for smaller matrices, used when data fits comfortably in memory
+- **Eigendecomposition**: More memory-efficient for tall matrices (many samples, few snapshots)

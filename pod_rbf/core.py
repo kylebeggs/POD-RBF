@@ -7,7 +7,7 @@ Pure functional interface for JAX autodiff compatibility.
 import jax.numpy as jnp
 from jax import Array
 
-from .decomposition import compute_pod_basis
+from .decomposition import compute_pod_basis, compute_pod_basis_svd_gavish_donoho
 from .rbf import (
     build_collocation_matrix,
     build_inference_matrix,
@@ -63,9 +63,18 @@ def train(
     # Compute parameter ranges for normalization
     params_range = jnp.ptp(train_params, axis=1)
 
-    # Determine decomposition method based on memory
-    memory_gb = snapshot.nbytes / 1e9
-    use_eig = memory_gb >= config.mem_limit_gb
+    # Determine decomposition method (Issue #13 improvement)
+    if config.decomposition_method == "auto":
+        # Better heuristic: consider both memory and matrix shape
+        # Eig is better when n_samples >> n_snapshots (tall matrix)
+        # because it computes (n_snapshots x n_snapshots) covariance
+        memory_gb = snapshot.nbytes / 1e9
+        n_samples, n_snaps = snapshot.shape
+        use_eig = memory_gb >= config.mem_limit_gb or n_samples > 10 * n_snaps
+    elif config.decomposition_method == "eig":
+        use_eig = True
+    else:  # "svd"
+        use_eig = False
 
     # Find optimal shape factor if not provided
     if shape_factor is None:
@@ -83,9 +92,15 @@ def train(
         )
 
     # Compute truncated POD basis
-    basis, cumul_energy, truncated_energy = compute_pod_basis(
-        snapshot, config.energy_threshold, use_eig=use_eig
-    )
+    if config.truncation_method == "gavish_donoho":
+        # Gavish-Donoho optimal denoising (always uses SVD internally)
+        basis, cumul_energy, truncated_energy = compute_pod_basis_svd_gavish_donoho(
+            snapshot, sigma=config.noise_sigma
+        )
+    else:  # "energy" (default)
+        basis, cumul_energy, truncated_energy = compute_pod_basis(
+            snapshot, config.energy_threshold, use_eig=use_eig
+        )
 
     # Build collocation matrix
     F = build_collocation_matrix(

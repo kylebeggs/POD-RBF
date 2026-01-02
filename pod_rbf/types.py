@@ -23,6 +23,12 @@ class TrainConfig(NamedTuple):
     poly_degree: int = 2  # Polynomial augmentation degree (0=none, 1=linear, 2=quadratic)
     kernel: str = "imq"  # RBF kernel type: 'imq', 'gaussian', 'polyharmonic_spline'
     kernel_order: int = 3  # For polyharmonic splines only (order of r^k)
+    # Truncation method: 'energy' (default) or 'gavish_donoho' (optimal for noisy data)
+    truncation_method: str = "energy"
+    # Noise standard deviation for Gavish-Donoho; None = auto-estimate from data
+    noise_sigma: float | None = None
+    # Decomposition method: 'auto' (default), 'svd', or 'eig'
+    decomposition_method: str = "auto"
 
 
 class ModelState(NamedTuple):
